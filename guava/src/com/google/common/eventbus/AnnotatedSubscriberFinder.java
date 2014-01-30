@@ -16,6 +16,15 @@
 
 package com.google.common.eventbus;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.annotation.Nullable;
+
 import com.google.common.base.Objects;
 import com.google.common.base.Throwables;
 import com.google.common.cache.CacheBuilder;
@@ -27,14 +36,8 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.reflect.TypeToken;
 import com.google.common.util.concurrent.UncheckedExecutionException;
-
-import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import javax.annotation.Nullable;
+import com.google.inject.Inject;
+import com.google.inject.name.Named;
 
 /**
  * A {@link SubscriberFindingStrategy} for collecting all event subscriber methods that are marked
@@ -43,14 +46,27 @@ import javax.annotation.Nullable;
  * @author Cliff Biffle
  * @author Louis Wasserman
  */
-class AnnotatedSubscriberFinder implements SubscriberFindingStrategy {
+public class AnnotatedSubscriberFinder implements SubscriberFindingStrategy {
+	
+
+	/* BEGIN -- Additions made by ngaud */
+			
+	private Class<? extends Annotation> subscriberAnnotation;
+
+	public AnnotatedSubscriberFinder(Class<? extends Annotation> annotation) {
+		this.subscriberAnnotation = annotation;
+	}
+		
+	/* END -- Additions made by ngaud */
+ 
+    
   /**
    * A thread-safe cache that contains the mapping from each class to all methods in that class and
    * all super-classes, that are annotated with {@code @Subscribe}. The cache is shared across all
    * instances of this class; this greatly improves performance if multiple EventBus instances are
    * created and objects of the same class are registered on all of them.
    */
-  private static final LoadingCache<Class<?>, ImmutableList<Method>> subscriberMethodsCache =
+  private  final LoadingCache<Class<?>, ImmutableList<Method>> subscriberMethodsCache =
       CacheBuilder.newBuilder()
           .weakKeys()
           .build(new CacheLoader<Class<?>, ImmutableList<Method>>() {
@@ -78,7 +94,7 @@ class AnnotatedSubscriberFinder implements SubscriberFindingStrategy {
     return methodsInListener;
   }
 
-  private static ImmutableList<Method> getAnnotatedMethods(Class<?> clazz) {
+  private ImmutableList<Method> getAnnotatedMethods(Class<?> clazz) {
     try {
       return subscriberMethodsCache.getUnchecked(clazz);
     } catch (UncheckedExecutionException e) {
@@ -110,12 +126,12 @@ class AnnotatedSubscriberFinder implements SubscriberFindingStrategy {
     }
   }
 
-  private static ImmutableList<Method> getAnnotatedMethodsInternal(Class<?> clazz) {
+  private ImmutableList<Method> getAnnotatedMethodsInternal(Class<?> clazz) {
     Set<? extends Class<?>> supers = TypeToken.of(clazz).getTypes().rawTypes();
     Map<MethodIdentifier, Method> identifiers = Maps.newHashMap();
     for (Class<?> superClazz : supers) {
       for (Method superClazzMethod : superClazz.getMethods()) {
-        if (superClazzMethod.isAnnotationPresent(Subscribe.class)) {
+        if (superClazzMethod.isAnnotationPresent(AnnotatedSubscriberFinder.this.subscriberAnnotation)) {
           Class<?>[] parameterTypes = superClazzMethod.getParameterTypes();
           if (parameterTypes.length != 1) {
             throw new IllegalArgumentException("Method " + superClazzMethod

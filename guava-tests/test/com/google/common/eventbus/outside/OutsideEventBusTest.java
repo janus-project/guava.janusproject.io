@@ -16,8 +16,11 @@
 
 package com.google.common.eventbus.outside;
 
+import com.google.common.eventbus.AnnotationModule;
 import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.Subscribe;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 
 import junit.framework.TestCase;
 
@@ -31,6 +34,14 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class OutsideEventBusTest extends TestCase {
 
+	  private Injector injector;
+	  
+	  public OutsideEventBusTest() {
+		  super();
+		  injector = Guice.createInjector(new AnnotationModule());
+		
+	  }
+	
   /*
    * If you do this test from common.eventbus.EventBusTest, it doesn't actually test the behavior.
    * That is, even if exactly the same method works from inside the common.eventbus package tests,
@@ -40,6 +51,7 @@ public class OutsideEventBusTest extends TestCase {
     final AtomicReference<String> holder = new AtomicReference<String>();
     final AtomicInteger deliveries = new AtomicInteger();
     EventBus bus = new EventBus();
+    this.injector.injectMembers(bus);
     bus.register(new Object() {
       @Subscribe
       public void accept(String str) {

@@ -17,6 +17,8 @@
 package com.google.common.eventbus;
 
 import com.google.common.collect.Lists;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 
 import junit.framework.TestCase;
 
@@ -33,8 +35,18 @@ public class ReentrantEventsTest extends TestCase {
   static final String FIRST = "one";
   static final Double SECOND = 2.0d;
 
-  final EventBus bus = new EventBus();
-
+  final EventBus bus;
+  
+  private Injector injector;
+  
+  public ReentrantEventsTest() {
+	  super();
+	  injector = Guice.createInjector(new AnnotationModule());
+	  bus = new EventBus();
+	  this.injector.injectMembers(bus);
+  }
+  
+  
   public void testNoReentrantEvents() {
     ReentrantEventsHater hater = new ReentrantEventsHater();
     bus.register(hater);

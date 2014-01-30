@@ -18,6 +18,9 @@ package com.google.common.eventbus;
 
 import com.google.caliper.BeforeExperiment;
 import com.google.caliper.Benchmark;
+import com.google.common.eventbus.AnnotationModule;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 
 /**
  * Benchmark for {@link EventBus}.
@@ -27,10 +30,20 @@ import com.google.caliper.Benchmark;
 public class EventBusBenchmark {
 
   private EventBus eventBus;
-
+  
+  private Injector injector;
+  
+  public EventBusTest() {
+	  super();
+	  injector = Guice.createInjector(new AnnotationModule());
+	
+  }
+  
+  
   @BeforeExperiment
   void setUp() {
     eventBus = new EventBus("for benchmarking purposes");
+    this.injector.injectMembers(eventBus);
     eventBus.register(this);
   }
 

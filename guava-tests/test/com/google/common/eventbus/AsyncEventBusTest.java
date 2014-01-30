@@ -17,6 +17,8 @@
 package com.google.common.eventbus;
 
 import com.google.common.collect.Lists;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 
 import junit.framework.TestCase;
 
@@ -34,11 +36,20 @@ public class AsyncEventBusTest extends TestCase {
   /** The executor we use to fake asynchronicity. */
   private FakeExecutor executor;
   private AsyncEventBus bus;
+  
+  private Injector injector;
+  
+  public AsyncEventBusTest() {
+	  super();
+	  injector = Guice.createInjector(new AnnotationModule());
+	
+  }
 
   @Override protected void setUp() throws Exception {
     super.setUp();
     executor = new FakeExecutor();
     bus = new AsyncEventBus(executor);
+    this.injector.injectMembers(bus);
   }
 
   public void testBasicDistribution() {

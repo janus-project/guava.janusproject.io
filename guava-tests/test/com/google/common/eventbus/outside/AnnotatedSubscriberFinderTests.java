@@ -19,8 +19,11 @@ package com.google.common.eventbus.outside;
 import static org.truth0.Truth.ASSERT;
 
 import com.google.common.collect.Lists;
+import com.google.common.eventbus.AnnotationModule;
 import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.Subscribe;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 
 import junit.framework.TestCase;
 
@@ -40,7 +43,15 @@ public class AnnotatedSubscriberFinderTests {
     abstract H createSubscriber();
 
     private H subscriber;
-
+    
+    private Injector injector;
+    
+    public AbstractEventBusTest() {
+  	  super();
+  	  injector = Guice.createInjector(new AnnotationModule());  	
+    }
+    
+    
     H getSubscriber() {
       return subscriber;
     }
@@ -49,6 +60,7 @@ public class AnnotatedSubscriberFinderTests {
     protected void setUp() throws Exception {
       subscriber = createSubscriber();
       EventBus bus = new EventBus();
+      this.injector.injectMembers(bus);
       bus.register(subscriber);
       bus.post(EVENT);
     }

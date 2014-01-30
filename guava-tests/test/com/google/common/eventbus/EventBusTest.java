@@ -16,17 +16,19 @@
 
 package com.google.common.eventbus;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
-import junit.framework.TestCase;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+
+import junit.framework.TestCase;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 
 /**
  * Test case for {@link EventBus}.
@@ -38,10 +40,19 @@ public class EventBusTest extends TestCase {
   private static final String BUS_IDENTIFIER = "test-bus";
 
   private EventBus bus;
+  
+  private Injector injector;
+  
+  public EventBusTest() {
+	  super();
+	  injector = Guice.createInjector(new AnnotationModule());
+	
+  }
 
   @Override protected void setUp() throws Exception {
     super.setUp();
     bus = new EventBus(BUS_IDENTIFIER);
+    this.injector.injectMembers(bus);
   }
 
   public void testBasicCatcherDistribution() {
@@ -124,6 +135,8 @@ public class EventBusTest extends TestCase {
     final RecordingSubscriberExceptionHandler handler =
         new RecordingSubscriberExceptionHandler();
     final EventBus eventBus = new EventBus(handler);
+    this.injector.injectMembers(eventBus);
+    
     final RuntimeException exception =
         new RuntimeException("but culottes have a tendancy to ride up!");
     final Object subscriber = new Object() {
@@ -132,6 +145,7 @@ public class EventBusTest extends TestCase {
         throw exception;
       }
     };
+    
     eventBus.register(subscriber);
     eventBus.post(EVENT);
 
@@ -150,13 +164,17 @@ public class EventBusTest extends TestCase {
   }
 
   public void testSubscriberThrowsExceptionHandlerThrowsException() throws Exception{
+	  
     final EventBus eventBus = new EventBus(new SubscriberExceptionHandler() {
+    	
       @Override
       public void handleException(Throwable exception,
           SubscriberExceptionContext context) {
         throw new RuntimeException();
       }
     });
+    this.injector.injectMembers(eventBus);
+    
     final Object subscriber = new Object() {
       @Subscribe
       public void throwExceptionOn(String message) {

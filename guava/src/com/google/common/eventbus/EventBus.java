@@ -18,6 +18,17 @@ package com.google.common.eventbus;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import java.lang.reflect.InvocationTargetException;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.Map.Entry;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
@@ -29,17 +40,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.SetMultimap;
 import com.google.common.reflect.TypeToken;
 import com.google.common.util.concurrent.UncheckedExecutionException;
-
-import java.lang.reflect.InvocationTargetException;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.Map.Entry;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import com.google.inject.Inject;
 
 /**
  * Dispatches events to listeners, and provides ways for listeners to register
@@ -139,13 +140,22 @@ public class EventBus {
       HashMultimap.create();
   private final ReadWriteLock subscribersByTypeLock = new ReentrantReadWriteLock();
 
+  /* BEGIN -- Additions made by ngaud */
+  
   /**
    * Strategy for finding subscriber methods in registered objects.  Currently,
    * only the {@link AnnotatedSubscriberFinder} is supported, but this is
    * encapsulated for future expansion.
    */
-  private final SubscriberFindingStrategy finder = new AnnotatedSubscriberFinder();
+  private SubscriberFindingStrategy finder;// = new AnnotatedSubscriberFinder();
 
+  @Inject
+  void setSubscriberFindingStrategy(SubscriberFindingStrategy strategy) {
+	  this.finder = strategy;
+  }
+  
+  /* END -- Additions made by ngaud */
+  
   /** queues of events for the current thread to dispatch */
   private final ThreadLocal<Queue<EventWithSubscriber>> eventsToDispatch =
       new ThreadLocal<Queue<EventWithSubscriber>>() {

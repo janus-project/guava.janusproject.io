@@ -271,14 +271,6 @@
 		</pluginManagement>
 	</build>
 
-	<distributionManagement>
-		<site>
-			<id>guava-site</id>
-			<name>Guava Documentation Site</name>
-			<url>scp://dummy.server/dontinstall/usestaging</url>
-		</site>
-	</distributionManagement>
-
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
@@ -358,5 +350,37 @@
 
 		</dependencies>
 	</dependencyManagement>
+
+	
+
+	<!-- =================== -->
+	<!-- ==== Repositories === -->
+	<!-- =================== -->
+
+	<repositories>
+		<repository>
+			<id>io.janusproject.maven</id>
+			<name>Janus Repository</name>
+			<url>http://maven.janusproject.io/</url>
+		</repository>
+	</repositories>
+	
+	
+	
+	<!-- =================== -->
+	<!-- ==== Deployment === -->
+	<!-- =================== -->
+
+	<distributionManagement>
+		<repository>
+			<id>local-release-repository</id>
+			<url>file:///var/www/janus-maven-repository/</url>
+		</repository>
+		<snapshotRepository>
+			<id>local-snapshot-repository</id>
+			<url>file:///var/www/janus-maven-repository/</url>
+		</snapshotRepository>
+	</distributionManagement>
+
 
 </project>

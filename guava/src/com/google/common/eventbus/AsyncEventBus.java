@@ -32,10 +32,11 @@ import java.util.concurrent.Executor;
  */
 @Beta
 public class AsyncEventBus extends EventBus {
+	
   private final Executor executor;
 
   /** the queue of events is shared across all threads */
-  private final ConcurrentLinkedQueue<EventWithSubscriber> eventsToDispatch =
+  final ConcurrentLinkedQueue<EventWithSubscriber> eventsToDispatchAsynchronously =
       new ConcurrentLinkedQueue<EventWithSubscriber>();
 
   /**
@@ -83,7 +84,7 @@ public class AsyncEventBus extends EventBus {
 
   @Override
   void enqueueEvent(Object event, EventSubscriber subscriber) {
-    eventsToDispatch.offer(new EventWithSubscriber(event, subscriber));
+    eventsToDispatchAsynchronously.offer(new EventWithSubscriber(event, subscriber));
   }
 
   /**
@@ -94,7 +95,7 @@ public class AsyncEventBus extends EventBus {
   @Override
   protected void dispatchQueuedEvents() {
     while (true) {
-      EventWithSubscriber eventWithSubscriber = eventsToDispatch.poll();
+      EventWithSubscriber eventWithSubscriber = eventsToDispatchAsynchronously.poll();
       if (eventWithSubscriber == null) {
         break;
       }

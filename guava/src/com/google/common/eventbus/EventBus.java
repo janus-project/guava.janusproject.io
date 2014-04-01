@@ -136,9 +136,9 @@ public class EventBus {
    * <p>This SetMultimap is NOT safe for concurrent use; all access should be
    * made after acquiring a read or write lock via {@link #subscribersByTypeLock}.
    */
-  private final SetMultimap<Class<?>, EventSubscriber> subscribersByType =
+  final SetMultimap<Class<?>, EventSubscriber> subscribersByType =
       HashMultimap.create();
-  private final ReadWriteLock subscribersByTypeLock = new ReentrantReadWriteLock();
+  final ReadWriteLock subscribersByTypeLock = new ReentrantReadWriteLock();
 
   /* BEGIN -- Additions made by ngaud */
   
@@ -157,7 +157,7 @@ public class EventBus {
   /* END -- Additions made by ngaud */
   
   /** queues of events for the current thread to dispatch */
-  private final ThreadLocal<Queue<EventWithSubscriber>> eventsToDispatch =
+  final ThreadLocal<Queue<EventWithSubscriber>> eventsToDispatch =
       new ThreadLocal<Queue<EventWithSubscriber>>() {
     @Override protected Queue<EventWithSubscriber> initialValue() {
       return new LinkedList<EventWithSubscriber>();
@@ -165,14 +165,14 @@ public class EventBus {
   };
 
   /** true if the current thread is currently dispatching an event */
-  private final ThreadLocal<Boolean> isDispatching =
+  final ThreadLocal<Boolean> isDispatching =
       new ThreadLocal<Boolean>() {
     @Override protected Boolean initialValue() {
       return false;
     }
   };
 
-  private SubscriberExceptionHandler subscriberExceptionHandler;
+  SubscriberExceptionHandler subscriberExceptionHandler;
 
   /**
    * Creates a new EventBus named "default".

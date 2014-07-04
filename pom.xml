@@ -21,7 +21,7 @@
 
 
 	<properties>
-		<gpg.skip>false</gpg.skip>
+		<gpg.skip>true</gpg.skip>
 		<!-- Override this with -Dtest.include="**/SomeTest.java" on the CLI -->
 		<test.include>**/*Test.java</test.include>
 		<truth.version>0.13</truth.version>

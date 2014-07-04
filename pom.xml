@@ -11,7 +11,7 @@
 
 	<groupId>io.janusproject.guava</groupId>
 	<artifactId>guava-parent</artifactId>
-	<version>17.0-SNAPSHOT</version>
+	<version>17.0</version>
 	<packaging>pom</packaging>
 	<name>Guava Maven Parent</name>
 	<url>http://code.google.com/p/guava-libraries</url>
@@ -21,7 +21,7 @@
 
 
 	<properties>
-		<gpg.skip>true</gpg.skip>
+		<gpg.skip>false</gpg.skip>
 		<!-- Override this with -Dtest.include="**/SomeTest.java" on the CLI -->
 		<test.include>**/*Test.java</test.include>
 		<truth.version>0.13</truth.version>
@@ -120,7 +120,9 @@
 		<plugins>
 			<plugin>
 				<artifactId>maven-gpg-plugin</artifactId>
-				<version>1.4</version>
+				<!-- BEGIN Updates by ngaud -->
+				<version>1.5</version>
+				<!-- END Updates by ngaud -->
 				<executions>
 					<execution>
 						<id>sign-artifacts</id>

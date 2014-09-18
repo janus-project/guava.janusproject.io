@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>io.janusproject.guava</groupId>
 		<artifactId>guava-parent</artifactId>
-		<version>17.0</version>
+		<version>17.0.1</version>
 	</parent>
 
 	<artifactId>guava</artifactId>

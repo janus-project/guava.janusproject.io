@@ -367,7 +367,7 @@
 						<groupId>com.google.guava</groupId>
 						<artifactId>guava</artifactId>
 					</exclusion>
-				<exclusions>
+				</exclusions>
 			</dependency>
 
 			<dependency>

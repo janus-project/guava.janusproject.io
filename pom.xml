@@ -11,7 +11,7 @@
 
 	<groupId>io.janusproject.guava</groupId>
 	<artifactId>guava-parent</artifactId>
-	<version>17.0.1</version>
+	<version>17.0.2</version>
 	<packaging>pom</packaging>
 	<name>Guava Maven Parent</name>
 	<url>http://code.google.com/p/guava-libraries</url>
@@ -336,7 +336,7 @@
 				<exclusions>
 					<exclusion>
 						<!-- use the guava we're building. -->
-						<groupId>io.janusproject.guava</groupId>
+						<groupId>com.google.guava</groupId>
 						<artifactId>guava</artifactId>
 					</exclusion>
 				</exclusions>
@@ -350,7 +350,7 @@
 				<exclusions>
 					<exclusion>
 						<!-- use the guava we're building. -->
-						<groupId>io.janusproject.guava</groupId>
+						<groupId>com.google.guava</groupId>
 						<artifactId>guava</artifactId>
 					</exclusion>
 				</exclusions>
@@ -361,6 +361,13 @@
 				<groupId>com.google.inject</groupId>
 				<artifactId>guice</artifactId>
 				<version>4.0-beta4</version>
+				<exclusions>
+					<exclusion>
+						<!-- use the guava we're building. -->
+						<groupId>com.google.guava</groupId>
+						<artifactId>guava</artifactId>
+					</exclusion>
+				<exclusions>
 			</dependency>
 
 			<dependency>

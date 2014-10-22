@@ -1,5 +1,6 @@
 package com.google.common.eventbus;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Iterator;
 import java.util.Queue;
@@ -22,16 +23,16 @@ public class AsyncSyncEventBus extends EventBus {
 
 	private Dispatcher syncDispatcher = Dispatcher.perThreadDispatchQueue();
 
-	public AsyncSyncEventBus(String identifier, Executor executor) {
-		super(identifier, executor, Dispatcher.legacyAsync(), LoggingHandler.INSTANCE);
+	public AsyncSyncEventBus(String identifier, Executor executor, Class<? extends Annotation> annotation) {
+		super(identifier, executor, Dispatcher.legacyAsync(), LoggingHandler.INSTANCE,annotation);
 	}
 
-	public AsyncSyncEventBus(Executor executor, SubscriberExceptionHandler subscriberExceptionHandler) {
-		super("default", executor, Dispatcher.legacyAsync(), subscriberExceptionHandler);
+	public AsyncSyncEventBus(Executor executor, SubscriberExceptionHandler subscriberExceptionHandler, Class<? extends Annotation> annotation) {
+		super("default", executor, Dispatcher.legacyAsync(), subscriberExceptionHandler,annotation);
 	}
 
-	public AsyncSyncEventBus(Executor executor) {
-		super("default", executor, Dispatcher.legacyAsync(), LoggingHandler.INSTANCE);
+	public AsyncSyncEventBus(Executor executor, Class<? extends Annotation> annotation) {
+		super("default", executor, Dispatcher.legacyAsync(), LoggingHandler.INSTANCE,annotation);
 	}
 
 	public void fire(Object event) {

@@ -23,17 +23,6 @@
 	</description>
 
 	<dependencies>
-		<!-- BEGIN Additions by ngaud -->
-		<dependency>
-			<groupId>com.google.inject</groupId>
-			<artifactId>guice</artifactId>
-		</dependency>
-
-		<dependency>
-			<groupId>com.google.inject.extensions</groupId>
-			<artifactId>guice-assistedinject</artifactId>
-		</dependency>
-		<!-- END Additions by ngaud -->
 
 		<dependency>
 			<groupId>com.google.code.findbugs</groupId>
@@ -66,8 +55,6 @@
 						<Export-Package>!com.google.common.base.internal,com.google.common.*</Export-Package>
 						<Import-Package>
 							javax.annotation;resolution:=optional,
-							javax.inject;resolution:=optional,
-							com.google.inject.*;resolution:=optional,
 							sun.misc.*;resolution:=optional
 						</Import-Package>
 						<Bundle-DocURL>https://guava-libraries.googlecode.com/</Bundle-DocURL>

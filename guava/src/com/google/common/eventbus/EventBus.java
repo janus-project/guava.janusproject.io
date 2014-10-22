@@ -18,6 +18,7 @@ package com.google.common.eventbus;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.Iterator;
 import java.util.concurrent.Executor;
@@ -106,16 +107,57 @@ public class EventBus {
   private final String identifier;
   private final Executor executor;
   private final SubscriberExceptionHandler exceptionHandler;
-
-  private final SubscriberRegistry subscribers = new SubscriberRegistry(this);
+  /* BEGIN -- Additions made by ngaud */
+  //private final SubscriberRegistry subscribers = new SubscriberRegistry(this);
+  private final SubscriberRegistry subscribers;
+  /* END -- Additions made by ngaud */
+  
   private final Dispatcher dispatcher;
+  /* BEGIN -- Additions made by ngaud */
 
-
+//  /**
+//   * Creates a new EventBus named "default".
+//   */
+//  public EventBus() {
+//    this("default"); //$NON-NLS-1$
+//  }
+//
+//  /**
+//   * Creates a new EventBus with the given {@code identifier}.
+//   *
+//   * @param identifier  a brief name for this bus, for logging purposes.  Should
+//   *                    be a valid Java identifier.
+//   */
+//  public EventBus(String identifier) {
+//    this(identifier, MoreExecutors.directExecutor(),
+//        Dispatcher.perThreadDispatchQueue(), LoggingHandler.INSTANCE);
+//  }
+//
+//  /**
+//   * Creates a new EventBus with the given {@link SubscriberExceptionHandler}.
+//   * 
+//   * @param exceptionHandler Handler for subscriber exceptions.
+//   * @since 16.0
+//   */
+//  public EventBus(SubscriberExceptionHandler exceptionHandler) {
+//    this("default", //$NON-NLS-1$
+//        MoreExecutors.directExecutor(), Dispatcher.perThreadDispatchQueue(), exceptionHandler);
+//  }
+//
+//
+//  EventBus(String identifier, Executor executor, Dispatcher dispatcher,
+//      SubscriberExceptionHandler exceptionHandler) {
+//    this.identifier = checkNotNull(identifier);
+//    this.executor = checkNotNull(executor);
+//    this.dispatcher = checkNotNull(dispatcher);
+//    this.exceptionHandler = checkNotNull(exceptionHandler);
+//  } 
+  
   /**
    * Creates a new EventBus named "default".
    */
-  public EventBus() {
-    this("default"); //$NON-NLS-1$
+  public EventBus(Class<? extends Annotation> annotation) {
+    this("default",annotation); //$NON-NLS-1$
   }
 
   /**
@@ -124,9 +166,9 @@ public class EventBus {
    * @param identifier  a brief name for this bus, for logging purposes.  Should
    *                    be a valid Java identifier.
    */
-  public EventBus(String identifier) {
+  public EventBus(String identifier, Class<? extends Annotation> annotation) {
     this(identifier, MoreExecutors.directExecutor(),
-        Dispatcher.perThreadDispatchQueue(), LoggingHandler.INSTANCE);
+        Dispatcher.perThreadDispatchQueue(), LoggingHandler.INSTANCE,annotation);
   }
 
   /**
@@ -135,18 +177,21 @@ public class EventBus {
    * @param exceptionHandler Handler for subscriber exceptions.
    * @since 16.0
    */
-  public EventBus(SubscriberExceptionHandler exceptionHandler) {
+  public EventBus(SubscriberExceptionHandler exceptionHandler, Class<? extends Annotation> annotation) {
     this("default", //$NON-NLS-1$
-        MoreExecutors.directExecutor(), Dispatcher.perThreadDispatchQueue(), exceptionHandler);
+        MoreExecutors.directExecutor(), Dispatcher.perThreadDispatchQueue(), exceptionHandler,annotation);
   }
-
+  
   EventBus(String identifier, Executor executor, Dispatcher dispatcher,
-      SubscriberExceptionHandler exceptionHandler) {
-    this.identifier = checkNotNull(identifier);
-    this.executor = checkNotNull(executor);
-    this.dispatcher = checkNotNull(dispatcher);
-    this.exceptionHandler = checkNotNull(exceptionHandler);
+	      SubscriberExceptionHandler exceptionHandler, Class<? extends Annotation> annotation) {
+	    this.identifier = checkNotNull(identifier);
+	    this.executor = checkNotNull(executor);
+	    this.dispatcher = checkNotNull(dispatcher);
+	    this.exceptionHandler = checkNotNull(exceptionHandler);
+
+	    this.subscribers = new SubscriberRegistry(this, annotation);
   }
+  /* END -- Additions made by ngaud */
 
   /**
    * Returns the identifier for this event bus.

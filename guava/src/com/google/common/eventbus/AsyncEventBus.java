@@ -18,6 +18,7 @@ package com.google.common.eventbus;
 
 import com.google.common.annotations.Beta;
 
+import java.lang.annotation.Annotation;
 import java.util.concurrent.Executor;
 
 /**
@@ -39,8 +40,8 @@ public class AsyncEventBus extends EventBus {
    *        responsibility to shut down the executor after the last event has
    *        been posted to this event bus.
    */
-  public AsyncEventBus(String identifier, Executor executor) {
-    super(identifier, executor, Dispatcher.legacyAsync(), LoggingHandler.INSTANCE);
+  public AsyncEventBus(String identifier, Executor executor, Class<? extends Annotation> annotation) {
+    super(identifier, executor, Dispatcher.legacyAsync(), LoggingHandler.INSTANCE,annotation);
   }
 
   /**
@@ -54,8 +55,8 @@ public class AsyncEventBus extends EventBus {
    *    See {@link SubscriberExceptionHandler} for more information.
    * @since 16.0
    */
-  public AsyncEventBus(Executor executor, SubscriberExceptionHandler subscriberExceptionHandler) {
-    super("default", executor, Dispatcher.legacyAsync(), subscriberExceptionHandler);
+  public AsyncEventBus(Executor executor, SubscriberExceptionHandler subscriberExceptionHandler, Class<? extends Annotation> annotation) {
+    super("default", executor, Dispatcher.legacyAsync(), subscriberExceptionHandler,annotation);
   }
 
   /**
@@ -66,8 +67,8 @@ public class AsyncEventBus extends EventBus {
    *        responsibility to shut down the executor after the last event has
    *        been posted to this event bus.
    */
-  public AsyncEventBus(Executor executor) {
-	  super("default", executor, Dispatcher.legacyAsync(), LoggingHandler.INSTANCE);
+  public AsyncEventBus(Executor executor, Class<? extends Annotation> annotation) {
+	  super("default", executor, Dispatcher.legacyAsync(), LoggingHandler.INSTANCE,annotation);
   }  
   
 }

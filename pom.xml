@@ -373,28 +373,6 @@
 					</exclusion>
 				</exclusions>
 			</dependency>
-
-			<!-- BEGIN Additions by ngaud -->
-			<dependency>
-				<groupId>com.google.inject</groupId>
-				<artifactId>guice</artifactId>
-				<version>4.0-beta5</version>
-				<exclusions>
-					<exclusion>
-						<!-- use the guava we're building. -->
-						<groupId>com.google.guava</groupId>
-						<artifactId>guava</artifactId>
-					</exclusion>
-				</exclusions>
-			</dependency>
-
-			<dependency>
-				<groupId>com.google.inject.extensions</groupId>
-				<artifactId>guice-assistedinject</artifactId>
-				<version>4.0-beta5</version>
-			</dependency>
-			<!-- END Additions by ngaud -->
-			
 		</dependencies>
 	</dependencyManagement>
 </project>

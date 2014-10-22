@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>io.janusproject.guava</groupId>
 		<artifactId>guava-parent</artifactId>
-		<version>17.0.2</version>
+		<version>19.0.0</version>
 	</parent>
 
 	<artifactId>guava</artifactId>
@@ -14,38 +14,36 @@
 	<packaging>bundle</packaging>
 
 	<description>
-    Guava is a suite of core and expanded libraries that include
-    utility classes, google's collections, io classes, and much
-    much more.
+		Guava is a suite of core and expanded libraries that include
+		utility classes, google's collections, io classes, and much
+		much more.
 
-    Guava has only one code dependency - javax.annotation,
-    per the JSR-305 spec.
-  </description>
+		Guava has only one code dependency - javax.annotation,
+		per the JSR-305 spec.
+	</description>
 
-<dependencies>
-	<!-- BEGIN Additions by ngaud -->
-	<dependency>
-		<groupId>com.google.inject</groupId>
-		<artifactId>guice</artifactId>
-	</dependency>
+	<dependencies>
+		<!-- BEGIN Additions by ngaud -->
+		<dependency>
+			<groupId>com.google.inject</groupId>
+			<artifactId>guice</artifactId>
+		</dependency>
 
-	<dependency>
-		<groupId>com.google.inject.extensions</groupId>
-		<artifactId>guice-assistedinject</artifactId>
-	</dependency>
-	<!-- END Additions by ngaud -->
+		<dependency>
+			<groupId>com.google.inject.extensions</groupId>
+			<artifactId>guice-assistedinject</artifactId>
+		</dependency>
+		<!-- END Additions by ngaud -->
 
-
-	<dependency>
-		<groupId>com.google.code.findbugs</groupId>
-		<artifactId>jsr305</artifactId>
-		<optional>true</optional><!-- needed only for annotations -->
-	</dependency>
-	<!-- TODO(cpovirk): want this only for dependency plugin but seems not to 
-		work there? Maven runs without failure, but the resulting Javadoc is missing 
-		the hoped-for inherited text -->
-
-</dependencies>
+		<dependency>
+			<groupId>com.google.code.findbugs</groupId>
+			<artifactId>jsr305</artifactId>
+			<optional>true</optional><!-- needed only for annotations -->
+		</dependency>
+		<!-- TODO(cpovirk): want this only for dependency plugin but seems not 
+			to work there? Maven runs without failure, but the resulting Javadoc is missing 
+			the hoped-for inherited text -->
+	</dependencies>
 
 	<build>
 		<plugins>
@@ -72,18 +70,16 @@
 							com.google.inject.*;resolution:=optional,
 							sun.misc.*;resolution:=optional
 						</Import-Package>
+						<Bundle-DocURL>https://guava-libraries.googlecode.com/</Bundle-DocURL>
 					</instructions>
 				</configuration>
 			</plugin>
-			
 			<plugin>
 				<artifactId>maven-compiler-plugin</artifactId>
 			</plugin>
-			
 			<plugin>
 				<artifactId>maven-source-plugin</artifactId>
 			</plugin>
-			
 			<!-- TODO(cpovirk): include JDK sources when building testlib doc, too -->
 			<plugin>
 				<artifactId>maven-dependency-plugin</artifactId>
@@ -103,28 +99,10 @@
 					</execution>
 				</executions>
 			</plugin>
-			
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>animal-sniffer-maven-plugin</artifactId>
-				<configuration>
-					<signature>
-						<groupId>org.codehaus.mojo.signature</groupId>
-						<artifactId>java16-sun</artifactId>
-						<version>1.0</version>
-					</signature>
-				</configuration>
-				<executions>
-					<execution>
-						<id>check-java16-sun</id>
-						<phase>test</phase>
-						<goals>
-							<goal>check</goal>
-						</goals>
-					</execution>
-				</executions>
 			</plugin>
-			
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
@@ -176,10 +154,9 @@
 					</execution>
 				</executions>
 			</plugin>
-			
 		</plugins>
 	</build>
-	
+
 	<profiles>
 		<profile>
 			<id>srczip</id>
@@ -200,4 +177,5 @@
 			</dependencies>
 		</profile>
 	</profiles>
+
 </project>

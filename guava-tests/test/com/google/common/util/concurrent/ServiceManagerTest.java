@@ -15,6 +15,7 @@
  */
 package com.google.common.util.concurrent;
 
+import static com.google.common.truth.Truth.assertThat;
 import static java.util.Arrays.asList;
 
 import com.google.common.collect.ImmutableMap;
@@ -62,10 +63,10 @@ public class ServiceManagerTest extends TestCase {
    * A NoOp service that will delay the startup and shutdown notification for a configurable amount
    * of time.
    */
-  private static class NoOpDelayedSerivce extends NoOpService {
+  private static class NoOpDelayedService extends NoOpService {
     private long delay;
 
-    public NoOpDelayedSerivce(long delay) {
+    public NoOpDelayedService(long delay) {
       this.delay = delay;
     }
 
@@ -108,14 +109,47 @@ public class ServiceManagerTest extends TestCase {
   }
 
   public void testServiceStartupTimes() {
-    Service a = new NoOpDelayedSerivce(150);
-    Service b = new NoOpDelayedSerivce(353);
+    Service a = new NoOpDelayedService(150);
+    Service b = new NoOpDelayedService(353);
     ServiceManager serviceManager = new ServiceManager(asList(a, b));
     serviceManager.startAsync().awaitHealthy();
     ImmutableMap<Service, Long> startupTimes = serviceManager.startupTimes();
     assertEquals(2, startupTimes.size());
+    // TODO(user): Use assertThat(startupTimes.get(a)).isAtLeast(150);
     assertTrue(startupTimes.get(a) >= 150);
+    // TODO(user): Use assertThat(startupTimes.get(b)).isAtLeast(353);
     assertTrue(startupTimes.get(b) >= 353);
+  }
+
+  public void testServiceStartupTimes_selfStartingServices() {
+    // This tests to ensure that:
+    // 1. service times are accurate when the service is started by the manager
+    // 2. service times are recorded when the service is not started by the manager (but they may
+    // not be accurate).
+    final Service b = new NoOpDelayedService(353) {
+      @Override protected void doStart() {
+        super.doStart();
+        // This will delay service listener execution at least 150 milliseconds
+        Uninterruptibles.sleepUninterruptibly(150, TimeUnit.MILLISECONDS);
+      }
+    };
+    Service a = new NoOpDelayedService(150) {
+      @Override protected void doStart() {
+        b.startAsync();
+        super.doStart();
+      }
+    };
+    ServiceManager serviceManager = new ServiceManager(asList(a, b));
+    serviceManager.startAsync().awaitHealthy();
+    ImmutableMap<Service, Long> startupTimes = serviceManager.startupTimes();
+    assertEquals(2, startupTimes.size());
+    // TODO(user): Use assertThat(startupTimes.get(a)).isAtLeast(150);
+    assertTrue(startupTimes.get(a) >= 150);
+    // Service b startup takes at least 353 millis, but starting the timer is delayed by at least
+    // 150 milliseconds. so in a perfect world the timing would be 353-150=203ms, but since either
+    // of our sleep calls can be arbitrarily delayed we should just assert that there is a time
+    // recorded.
+    assertThat(startupTimes.get(b)).isNotNull();
   }
 
   public void testServiceStartStop() {
@@ -217,7 +251,7 @@ public class ServiceManagerTest extends TestCase {
   }
 
   public void testTimeouts() throws Exception {
-    Service a = new NoOpDelayedSerivce(50);
+    Service a = new NoOpDelayedService(50);
     ServiceManager manager = new ServiceManager(asList(a));
     manager.startAsync();
     try {
@@ -311,7 +345,7 @@ public class ServiceManagerTest extends TestCase {
     logger.addHandler(logHandler);
     ServiceManager manager = new ServiceManager(Arrays.<Service>asList());
     RecordingListener listener = new RecordingListener();
-    manager.addListener(listener, MoreExecutors.sameThreadExecutor());
+    manager.addListener(listener);
     manager.startAsync().awaitHealthy();
     assertTrue(manager.isHealthy());
     assertTrue(listener.healthyCalled);
@@ -337,17 +371,22 @@ public class ServiceManagerTest extends TestCase {
   }
 
   /**
-   * This is for a case where a long running Listener using the sameThreadListener could deadlock
-   * another thread calling stopAsync().
+   * Tests that a ServiceManager can be fully shut down if one of its failure listeners is slow or
+   * even permanently blocked.
    */
 
   public void testListenerDeadlock() throws InterruptedException {
     final CountDownLatch failEnter = new CountDownLatch(1);
+    final CountDownLatch failLeave = new CountDownLatch(1);
+    final CountDownLatch afterStarted = new CountDownLatch(1);
     Service failRunService = new AbstractService() {
       @Override protected void doStart() {
         new Thread() {
           @Override public void run() {
             notifyStarted();
+            // We need to wait for the main thread to leave the ServiceManager.startAsync call to
+            // ensure that the thread running the failure callbacks is not the main thread.
+            Uninterruptibles.awaitUninterruptibly(afterStarted);
             notifyFailed(new Exception("boom"));
           }
         }.start();
@@ -361,14 +400,15 @@ public class ServiceManagerTest extends TestCase {
     manager.addListener(new ServiceManager.Listener() {
       @Override public void failure(Service service) {
         failEnter.countDown();
-        // block forever!
-        Uninterruptibles.awaitUninterruptibly(new CountDownLatch(1));
+        // block until after the service manager is shutdown
+        Uninterruptibles.awaitUninterruptibly(failLeave);
       }
-    }, MoreExecutors.sameThreadExecutor());
+    });
+    manager.startAsync();
+    afterStarted.countDown();
     // We do not call awaitHealthy because, due to races, that method may throw an exception.  But
     // we really just want to wait for the thread to be in the failure callback so we wait for that
     // explicitly instead.
-    manager.startAsync();
     failEnter.await();
     assertFalse("State should be updated before calling listeners", manager.isHealthy());
     // now we want to stop the services.
@@ -381,6 +421,7 @@ public class ServiceManagerTest extends TestCase {
     // this should be super fast since the only non stopped service is a NoOpService
     stoppingThread.join(1000);
     assertFalse("stopAsync has deadlocked!.", stoppingThread.isAlive());
+    failLeave.countDown();  // release the background thread
   }
 
   /**

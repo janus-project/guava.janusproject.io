@@ -112,21 +112,6 @@ public final class Maps {
     return Iterators.transform(entryIterator, Maps.<V>valueFunction());
   }
 
-  static <K, V> UnmodifiableIterator<V> valueIterator(
-      final UnmodifiableIterator<Entry<K, V>> entryIterator) {
-    return new UnmodifiableIterator<V>() {
-      @Override
-      public boolean hasNext() {
-        return entryIterator.hasNext();
-      }
-
-      @Override
-      public V next() {
-        return entryIterator.next().getValue();
-      }
-    };
-  }
-
   /**
    * Returns an immutable map instance containing the given entries.
    * Internally, the returned map will be backed by an {@link EnumMap}.
@@ -201,7 +186,10 @@ public final class Maps {
       return expectedSize + 1;
     }
     if (expectedSize < Ints.MAX_POWER_OF_TWO) {
-      return expectedSize + expectedSize / 3;
+      // This is the calculation used in JDK8 to resize when a putAll
+      // happens; it seems to be the most conservative calculation we
+      // can make.  0,75 is the default load factor.
+      return (int) ((float) expectedSize / 0.75F + 1.0F);
     }
     return Integer.MAX_VALUE; // any large value
   }
@@ -407,10 +395,10 @@ public final class Maps {
       Equivalence<? super V> valueEquivalence) {
     Preconditions.checkNotNull(valueEquivalence);
 
-    Map<K, V> onlyOnLeft = newHashMap();
-    Map<K, V> onlyOnRight = new HashMap<K, V>(right); // will whittle it down
-    Map<K, V> onBoth = newHashMap();
-    Map<K, MapDifference.ValueDifference<V>> differences = newHashMap();
+    Map<K, V> onlyOnLeft = newLinkedHashMap();
+    Map<K, V> onlyOnRight = new LinkedHashMap<K, V>(right); // will whittle it down
+    Map<K, V> onBoth = newLinkedHashMap();
+    Map<K, MapDifference.ValueDifference<V>> differences = newLinkedHashMap();
     doDifference(left, right, valueEquivalence, onlyOnLeft, onlyOnRight, onBoth, differences);
     return new MapDifferenceImpl<K, V>(onlyOnLeft, onlyOnRight, onBoth, differences);
   }
@@ -654,7 +642,7 @@ public final class Maps {
    * Removal operations write through to the backing set.  The returned map
    * does not support put operations.
    *
-   * <p><b>Warning</b>: If the function rejects {@code null}, caution is
+   * <p><b>Warning:</b> If the function rejects {@code null}, caution is
    * required to make sure the set does not contain {@code null}, because the
    * view cannot stop {@code null} from being added to the set.
    *
@@ -690,7 +678,7 @@ public final class Maps {
    * Removal operations write through to the backing set.  The returned map does
    * not support put operations.
    *
-   * <p><b>Warning</b>: If the function rejects {@code null}, caution is
+   * <p><b>Warning:</b> If the function rejects {@code null}, caution is
    * required to make sure the set does not contain {@code null}, because the
    * view cannot stop {@code null} from being added to the set.
    *
@@ -713,7 +701,7 @@ public final class Maps {
     return new SortedAsMapView<K, V>(set, function);
   }
 
-  private static class AsMapView<K, V> extends ImprovedAbstractMap<K, V> {
+  private static class AsMapView<K, V> extends ViewCachingAbstractMap<K, V> {
 
     private final Set<K> set;
     final Function<? super K, V> function;
@@ -961,6 +949,7 @@ public final class Maps {
    */
   public static <K, V> ImmutableMap<K, V> uniqueIndex(
       Iterable<V> values, Function<? super V, K> keyFunction) {
+    // TODO(user): consider presizing the builder if values is a Collection
     return uniqueIndex(values.iterator(), keyFunction);
   }
 
@@ -1041,6 +1030,21 @@ public final class Maps {
     };
   }
 
+  static <K, V> UnmodifiableIterator<Entry<K, V>> unmodifiableEntryIterator(
+      final Iterator<Entry<K, V>> entryIterator) {
+    return new UnmodifiableIterator<Entry<K, V>>() {
+      @Override
+      public boolean hasNext() {
+        return entryIterator.hasNext();
+      }
+
+      @Override
+      public Entry<K, V> next() {
+        return unmodifiableEntry(entryIterator.next());
+      }
+    };
+  }
+
   /** @see Multimaps#unmodifiableEntries */
   static class UnmodifiableEntries<K, V>
       extends ForwardingCollection<Entry<K, V>> {
@@ -1055,17 +1059,7 @@ public final class Maps {
     }
 
     @Override public Iterator<Entry<K, V>> iterator() {
-      final Iterator<Entry<K, V>> delegate = super.iterator();
-      return new UnmodifiableIterator<Entry<K, V>>() {
-        @Override
-        public boolean hasNext() {
-          return delegate.hasNext();
-        }
-
-        @Override public Entry<K, V> next() {
-          return unmodifiableEntry(delegate.next());
-        }
-      };
+      return unmodifiableEntryIterator(entries.iterator());
     }
 
     // See java.util.Collections.UnmodifiableEntrySet for details on attacks.
@@ -1565,7 +1559,7 @@ public final class Maps {
   }
 
   static class TransformedEntriesMap<K, V1, V2>
-      extends ImprovedAbstractMap<K, V2> {
+      extends ViewCachingAbstractMap<K, V2> {
     final Map<K, V1> fromMap;
     final EntryTransformer<? super K, ? super V1, V2> transformer;
 
@@ -2024,7 +2018,7 @@ public final class Maps {
   }
 
   private abstract static class AbstractFilteredMap<K, V>
-      extends ImprovedAbstractMap<K, V> {
+      extends ViewCachingAbstractMap<K, V> {
     final Map<K, V> unfiltered;
     final Predicate<? super Entry<K, V>> predicate;
 
@@ -2399,14 +2393,11 @@ public final class Maps {
   }
 
   /**
-   * {@code AbstractMap} extension that implements {@link #isEmpty()} as {@code
-   * entrySet().isEmpty()} instead of {@code size() == 0} to speed up
-   * implementations where {@code size()} is O(n), and it delegates the {@code
-   * isEmpty()} methods of its key set and value collection to this
-   * implementation.
+   * {@code AbstractMap} extension that makes it easy to cache customized keySet, values,
+   * and entrySet views.
    */
   @GwtCompatible
-  abstract static class ImprovedAbstractMap<K, V> extends AbstractMap<K, V> {
+  abstract static class ViewCachingAbstractMap<K, V> extends AbstractMap<K, V> {
     /**
      * Creates the entry set to be returned by {@link #entrySet()}. This method
      * is invoked at most once on a given map, at the time when {@code entrySet}
@@ -2803,5 +2794,18 @@ public final class Maps {
         return map().keySet().retainAll(keys);
       }
     }
+  }
+
+  /**
+   * Returns a map from the ith element of list to i.
+   */
+  static <E> ImmutableMap<E, Integer> indexMap(Collection<E> list) {
+    ImmutableMap.Builder<E, Integer> builder =
+        new ImmutableMap.Builder<E, Integer>(list.size());
+    int i = 0;
+    for (E e : list) {
+      builder.put(e, i++);
+    }
+    return builder.build();
   }
 }

@@ -17,11 +17,13 @@
 package com.google.common.testing;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.truth0.Truth.ASSERT;
+import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.base.Functions;
+import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.testing.ClassSanityTester.FactoryMethodReturnsNullException;
+import com.google.common.testing.ClassSanityTester.ParameterHasNoDistinctValueException;
 import com.google.common.testing.ClassSanityTester.ParameterNotInstantiableException;
 import com.google.common.testing.NullPointerTester.Visibility;
 
@@ -33,6 +35,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
@@ -309,7 +313,7 @@ public class ClassSanityTesterTest extends TestCase {
     try {
       tester.testEquals(BadEquals.class);
     } catch (AssertionFailedError expected) {
-      ASSERT.that(expected.getMessage()).contains("create(null)");
+      assertThat(expected.getMessage()).contains("create(null)");
       return;
     }
     fail("should have failed");
@@ -319,10 +323,17 @@ public class ClassSanityTesterTest extends TestCase {
     try {
       tester.testEquals(BadEqualsWithParameterizedType.class);
     } catch (AssertionFailedError expected) {
-      ASSERT.that(expected.getMessage()).contains("create([[1]])");
+      assertThat(expected.getMessage()).contains("create([[1]])");
       return;
     }
     fail("should have failed");
+  }
+
+  public void testBadEquals_withSingleParameterValue() throws Exception {
+    try {
+      tester.doTestEquals(ConstructorParameterWithOptionalNotInstantiable.class);
+      fail();
+    } catch (ParameterHasNoDistinctValueException expected) {}
   }
 
   public void testGoodReferentialEqualityComparison() throws Exception {
@@ -349,7 +360,7 @@ public class ClassSanityTesterTest extends TestCase {
     try {
       tester.testEquals(cls);
     } catch (AssertionFailedError expected) {
-      ASSERT.that(expected.getMessage()).contains(cls.getSimpleName() + "(");
+      assertThat(expected.getMessage()).contains(cls.getSimpleName() + "(");
       return;
     }
     fail("should have failed");
@@ -360,6 +371,13 @@ public class ClassSanityTesterTest extends TestCase {
       tester.doTestEquals(ConstructorParameterNotInstantiable.class);
       fail("should have failed");
     } catch (ParameterNotInstantiableException expected) {}
+  }
+
+  public void testNoDistinctValueForEqualsTest() throws Exception {
+    try {
+      tester.doTestEquals(ConstructorParameterSingleValue.class);
+      fail("should have failed");
+    } catch (ParameterHasNoDistinctValueException expected) {}
   }
 
   public void testConstructorThrowsForEqualsTest() throws Exception {
@@ -421,6 +439,10 @@ public class ClassSanityTesterTest extends TestCase {
     tester.testNulls(TimeUnit.class);
   }
 
+  public void testNulls_parameterOptionalNotInstantiable() throws Exception {
+    tester.testNulls(ConstructorParameterWithOptionalNotInstantiable.class);
+  }
+
   public void testEnumFailsToCheckNull() throws Exception {
     try {
       tester.testNulls(EnumFailsToCheckNull.class);
@@ -451,7 +473,7 @@ public class ClassSanityTesterTest extends TestCase {
     try {
       tester.instantiate(FactoryMethodReturnsNullButNotAnnotated.class);
     } catch (AssertionFailedError expected) {
-      ASSERT.that(expected.getMessage()).contains("@Nullable");
+      assertThat(expected.getMessage()).contains("@Nullable");
       return;
     }
     fail("should have failed");
@@ -510,10 +532,19 @@ public class ClassSanityTesterTest extends TestCase {
     assertNotNull(tester.instantiate(ConstructorParameterNotInstantiable.class));
   }
 
-  public void testInstantiate_setSampleInstances() throws Exception {
+  public void testSetDistinctValues_equalInstances() {
+    try {
+      tester.setDistinctValues(String.class, "", "");
+      fail();
+    } catch (IllegalArgumentException expected) {}
+  }
+
+  public void testInstantiate_setDistinctValues() throws Exception {
     NotInstantiable x = new NotInstantiable();
-    tester.setSampleInstances(NotInstantiable.class, ImmutableList.of(x));
+    NotInstantiable y = new NotInstantiable();
+    tester.setDistinctValues(NotInstantiable.class, x, y);
     assertNotNull(tester.instantiate(ConstructorParameterNotInstantiable.class));
+    tester.testEquals(ConstructorParameterMapOfNotInstantiable.class);
   }
 
   public void testInstantiate_setSampleInstances_empty() throws Exception {
@@ -617,6 +648,45 @@ public class ClassSanityTesterTest extends TestCase {
 
   public void testInstantiate_instantiableConstructorChosen() throws Exception {
     assertEquals("good", tester.instantiate(InstantiableConstructorChosen.class).name);
+  }
+
+  public void testEquals_setOfNonInstantiable() throws Exception {
+    try {
+      new ClassSanityTester().doTestEquals(SetWrapper.class);
+      fail();
+    } catch (ParameterNotInstantiableException expected) {}
+  }
+
+  private abstract static class Wrapper {
+    private final Object wrapped;
+
+    Wrapper(Object wrapped) {
+      this.wrapped = checkNotNull(wrapped);
+    }
+
+    @Override public boolean equals(@Nullable Object obj) {
+      // In general getClass().isInstance() is bad for equals.
+      // But here we fully control the subclasses to ensure symmetry.
+      if (getClass().isInstance(obj)) {
+        Wrapper that = (Wrapper) obj;
+        return wrapped.equals(that.wrapped);
+      }
+      return false;
+    }
+
+    @Override public int hashCode() {
+      return wrapped.hashCode();
+    }
+
+    @Override public String toString() {
+      return wrapped.toString();
+    }
+  }
+
+  private static class SetWrapper extends Wrapper {
+    public SetWrapper(Set<NotInstantiable> wrapped) {
+      super(wrapped);
+    }
   }
 
   static class InstantiableConstructorChosen {
@@ -1117,6 +1187,53 @@ public class ClassSanityTesterTest extends TestCase {
     public ConstructorParameterNotInstantiable(@SuppressWarnings("unused") NotInstantiable x) {}
   }
 
+  static class ConstructorParameterMapOfNotInstantiable {
+    private final Map<NotInstantiable, NotInstantiable> m;
+    
+    public ConstructorParameterMapOfNotInstantiable(
+        Map<NotInstantiable, NotInstantiable> m) {
+      this.m = checkNotNull(m);
+    }
+    @Override public boolean equals(@Nullable Object obj) {
+      if (obj instanceof ConstructorParameterMapOfNotInstantiable) {
+        return m.equals(((ConstructorParameterMapOfNotInstantiable) obj).m);
+      } else {
+        return false;
+      }
+    }
+    @Override public int hashCode() {
+      return m.hashCode();
+    }
+  }
+
+  // Test that we should get a distinct parameter error when doing equals test.
+  static class ConstructorParameterWithOptionalNotInstantiable {
+    public ConstructorParameterWithOptionalNotInstantiable(Optional<NotInstantiable> x) {
+      checkNotNull(x);
+    }
+    @Override public boolean equals(@Nullable Object obj) {
+      throw new UnsupportedOperationException();
+    }
+    @Override public int hashCode() {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  static class ConstructorParameterSingleValue {
+    public ConstructorParameterSingleValue(@SuppressWarnings("unused") Singleton s) {}
+    @Override public boolean equals(Object obj) {
+      return obj instanceof ConstructorParameterSingleValue;
+    }
+    @Override public int hashCode() {
+      return 1;
+    }
+
+    public static class Singleton {
+      public static final Singleton INSTANCE = new Singleton();
+      private Singleton() {}
+    }
+  }
+
   static class FactoryMethodParameterNotInstantiable {
 
     private FactoryMethodParameterNotInstantiable() {}
@@ -1169,6 +1286,7 @@ public class ClassSanityTesterTest extends TestCase {
   }
 
   private static class NoPublicStaticMethods {
+    @SuppressWarnings("unused") // To test non-public factory isn't used.
     static String notPublic() {
       return "";
     }

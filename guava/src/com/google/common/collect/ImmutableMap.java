@@ -16,7 +16,6 @@
 
 package com.google.common.collect;
 
-import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.CollectPreconditions.checkEntryNotNull;
 
 import com.google.common.annotations.Beta;
@@ -132,7 +131,6 @@ public abstract class ImmutableMap<K, V> implements Map<K, V>, Serializable {
    * throw {@link UnsupportedOperationException}.
    */
   static <K, V> TerminalEntry<K, V> entryOf(K key, V value) {
-    checkEntryNotNull(key, value);
     return new TerminalEntry<K, V>(key, value);
   }
 
@@ -228,7 +226,20 @@ public abstract class ImmutableMap<K, V> implements Map<K, V>, Serializable {
      */
     public Builder<K, V> putAll(Map<? extends K, ? extends V> map) {
       ensureCapacity(size + map.size());
-      for (Entry<? extends K, ? extends V> entry : map.entrySet()) {
+      return putAll(map.entrySet());
+    }
+
+    /**
+     * Adds all of the given entries to the built map.  Duplicate keys are not
+     * allowed, and will cause {@link #build} to fail.
+     *
+     * @throws NullPointerException if any key, value, or entry is null
+     * @since 19.0
+     */
+    @Beta
+    public Builder<K, V> putAll(
+        Iterable<? extends Entry<? extends K, ? extends V>> entries) {
+      for (Entry<? extends K, ? extends V> entry : entries) {
         put(entry);
       }
       return this;
@@ -282,16 +293,30 @@ public abstract class ImmutableMap<K, V> implements Map<K, V>, Serializable {
     } else if (map instanceof EnumMap) {
       return copyOfEnumMapUnsafe(map);
     }
-    Entry<?, ?>[] entries = map.entrySet().toArray(EMPTY_ENTRY_ARRAY);
-    switch (entries.length) {
+    return copyOf(map.entrySet());
+  }
+
+  /**
+   * Returns an immutable map containing the specified entries.  The returned
+   * map iterates over entries in the same order as the original iterable.
+   *
+   * @throws NullPointerException if any key, value, or entry is null
+   * @throws IllegalArgumentException if two entries have the same key
+   * @since 19.0
+   */
+  @Beta
+  public static <K, V> ImmutableMap<K, V> copyOf(
+      Iterable<? extends Entry<? extends K, ? extends V>> entries) {
+    Entry<?, ?>[] entryArray = Iterables.toArray(entries, EMPTY_ENTRY_ARRAY);
+    switch (entryArray.length) {
       case 0:
         return of();
       case 1:
         @SuppressWarnings("unchecked") // all entries will be Entry<K, V>'s
-        Entry<K, V> onlyEntry = (Entry<K, V>) entries[0];
+        Entry<K, V> onlyEntry = (Entry<K, V>) entryArray[0];
         return of(onlyEntry.getKey(), onlyEntry.getValue());
       default:
-        return new RegularImmutableMap<K, V>(entries);
+        return new RegularImmutableMap<K, V>(entryArray);
     }
   }
 
@@ -302,7 +327,7 @@ public abstract class ImmutableMap<K, V> implements Map<K, V>, Serializable {
   }
 
   private static <K extends Enum<K>, V> ImmutableMap<K, V> copyOfEnumMap(
-      Map<K, ? extends V> original) {
+      EnumMap<K, ? extends V> original) {
     EnumMap<K, V> copy = new EnumMap<K, V>(original);
     for (Map.Entry<?, ?> entry : copy.entrySet()) {
       checkEntryNotNull(entry.getKey(), entry.getValue());
@@ -310,7 +335,26 @@ public abstract class ImmutableMap<K, V> implements Map<K, V>, Serializable {
     return ImmutableEnumMap.asImmutable(copy);
   }
 
-  private static final Entry<?, ?>[] EMPTY_ENTRY_ARRAY = new Entry<?, ?>[0];
+  static final Entry<?, ?>[] EMPTY_ENTRY_ARRAY = new Entry<?, ?>[0];
+
+  abstract static class IteratorBasedImmutableMap<K, V> extends ImmutableMap<K, V> {
+    abstract UnmodifiableIterator<Entry<K, V>> entryIterator();
+
+    @Override
+    ImmutableSet<Entry<K, V>> createEntrySet() {
+      return new ImmutableMapEntrySet<K, V>() {
+        @Override
+        ImmutableMap<K, V> map() {
+          return IteratorBasedImmutableMap.this;
+        }
+
+        @Override
+        public UnmodifiableIterator<Entry<K, V>> iterator() {
+          return entryIterator();
+        }
+      };
+    }
+  }
 
   ImmutableMap() {}
 
@@ -411,6 +455,19 @@ public abstract class ImmutableMap<K, V> implements Map<K, V>, Serializable {
     return new ImmutableMapKeySet<K, V>(this);
   }
 
+  UnmodifiableIterator<K> keyIterator() {
+    final UnmodifiableIterator<Entry<K, V>> entryIterator = entrySet().iterator();
+    return new UnmodifiableIterator<K>() {
+      @Override public boolean hasNext() {
+        return entryIterator.hasNext();
+      }
+
+      @Override public K next() {
+        return entryIterator.next().getKey();
+      }
+    };
+  }
+
   private transient ImmutableCollection<V> values;
 
   /**
@@ -434,68 +491,62 @@ public abstract class ImmutableMap<K, V> implements Map<K, V>, Serializable {
   @Beta
   public ImmutableSetMultimap<K, V> asMultimap() {
     ImmutableSetMultimap<K, V> result = multimapView;
-    return (result == null) ? (multimapView = createMultimapView()) : result;
+    return (result == null)
+        ? (multimapView = new ImmutableSetMultimap<K, V>(
+            new MapViewOfValuesAsSingletonSets(), size(), null))
+        : result;
   }
 
-  private ImmutableSetMultimap<K, V> createMultimapView() {
-    ImmutableMap<K, ImmutableSet<V>> map = viewMapValuesAsSingletonSets();
-    return new ImmutableSetMultimap<K, V>(map, map.size(), null);
-  }
-
-  private ImmutableMap<K, ImmutableSet<V>> viewMapValuesAsSingletonSets() {
-    return new MapViewOfValuesAsSingletonSets<K, V>(this);
-  }
-
-  private static final class MapViewOfValuesAsSingletonSets<K, V>
-      extends ImmutableMap<K, ImmutableSet<V>> {
-    private final ImmutableMap<K, V> delegate;
-
-    MapViewOfValuesAsSingletonSets(ImmutableMap<K, V> delegate) {
-      this.delegate = checkNotNull(delegate);
-    }
+  private final class MapViewOfValuesAsSingletonSets
+      extends IteratorBasedImmutableMap<K, ImmutableSet<V>> {
 
     @Override public int size() {
-      return delegate.size();
+      return ImmutableMap.this.size();
+    }
+
+    @Override public ImmutableSet<K> keySet() {
+      return ImmutableMap.this.keySet();
     }
 
     @Override public boolean containsKey(@Nullable Object key) {
-      return delegate.containsKey(key);
+      return ImmutableMap.this.containsKey(key);
     }
 
     @Override public ImmutableSet<V> get(@Nullable Object key) {
-      V outerValue = delegate.get(key);
+      V outerValue = ImmutableMap.this.get(key);
       return (outerValue == null) ? null : ImmutableSet.of(outerValue);
     }
 
     @Override boolean isPartialView() {
-      return false;
+      return ImmutableMap.this.isPartialView();
     }
 
-    @Override ImmutableSet<Entry<K, ImmutableSet<V>>> createEntrySet() {
-      return new ImmutableMapEntrySet<K, ImmutableSet<V>>() {
-        @Override ImmutableMap<K, ImmutableSet<V>> map() {
-          return MapViewOfValuesAsSingletonSets.this;
+    @Override public int hashCode() {
+      // ImmutableSet.of(value).hashCode() == value.hashCode(), so the hashes are the same
+      return ImmutableMap.this.hashCode();
+    }
+
+    @Override boolean isHashCodeFast() {
+      return ImmutableMap.this.isHashCodeFast();
+    }
+
+    @Override
+    UnmodifiableIterator<Entry<K, ImmutableSet<V>>> entryIterator() {
+      final Iterator<Entry<K, V>> backingIterator = ImmutableMap.this.entrySet().iterator();
+      return new UnmodifiableIterator<Entry<K, ImmutableSet<V>>>() {
+        @Override public boolean hasNext() {
+          return backingIterator.hasNext();
         }
 
-        @Override
-        public UnmodifiableIterator<Entry<K, ImmutableSet<V>>> iterator() {
-          final Iterator<Entry<K, V>> backingIterator = delegate.entrySet().iterator();
-          return new UnmodifiableIterator<Entry<K, ImmutableSet<V>>>() {
-            @Override public boolean hasNext() {
-              return backingIterator.hasNext();
+        @Override public Entry<K, ImmutableSet<V>> next() {
+          final Entry<K, V> backingEntry = backingIterator.next();
+          return new AbstractMapEntry<K, ImmutableSet<V>>() {
+            @Override public K getKey() {
+              return backingEntry.getKey();
             }
 
-            @Override public Entry<K, ImmutableSet<V>> next() {
-              final Entry<K, V> backingEntry = backingIterator.next();
-              return new AbstractMapEntry<K, ImmutableSet<V>>() {
-                @Override public K getKey() {
-                  return backingEntry.getKey();
-                }
-
-                @Override public ImmutableSet<V> getValue() {
-                  return ImmutableSet.of(backingEntry.getValue());
-                }
-              };
+            @Override public ImmutableSet<V> getValue() {
+              return ImmutableSet.of(backingEntry.getValue());
             }
           };
         }
@@ -510,9 +561,11 @@ public abstract class ImmutableMap<K, V> implements Map<K, V>, Serializable {
   abstract boolean isPartialView();
 
   @Override public int hashCode() {
-    // not caching hash code since it could change if map values are mutable
-    // in a way that modifies their hash codes
-    return entrySet().hashCode();
+    return Sets.hashCodeImpl(entrySet());
+  }
+
+  boolean isHashCodeFast() {
+    return false;
   }
 
   @Override public String toString() {

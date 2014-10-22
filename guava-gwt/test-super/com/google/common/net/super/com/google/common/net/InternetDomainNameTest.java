@@ -109,7 +109,7 @@ public final class InternetDomainNameTest extends TestCase {
   );
 
   private static final ImmutableSet<String> NO_PS = ImmutableSet.of(
-      "www", "foo.google", "x.y.z");
+      "www", "foo.ihopethiswillneverbeapublicsuffix", "x.y.z");
 
   private static final ImmutableSet<String> NON_PS = ImmutableSet.of(
       "foo.bar.com", "foo.ca", "foo.bar.ca",
@@ -365,9 +365,9 @@ public final class InternetDomainNameTest extends TestCase {
   }
 
   public void testExclusion() {
-    InternetDomainName domain = InternetDomainName.from("foo.nic.uk");
+    InternetDomainName domain = InternetDomainName.from("foo.teledata.mz");
     assertTrue(domain.hasPublicSuffix());
-    assertEquals("uk", domain.publicSuffix().toString());
+    assertEquals("mz", domain.publicSuffix().toString());
 
     // Behold the weirdness!
     assertFalse(domain.publicSuffix().isPublicSuffix());

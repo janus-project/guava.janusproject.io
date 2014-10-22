@@ -43,7 +43,7 @@ final class ImmutableMapKeySet<K, V> extends ImmutableSet<K> {
 
   @Override
   public UnmodifiableIterator<K> iterator() {
-    return asList().iterator();
+    return map.keyIterator();
   }
 
   @Override

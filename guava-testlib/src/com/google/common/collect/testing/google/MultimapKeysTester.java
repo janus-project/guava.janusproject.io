@@ -18,9 +18,9 @@ import static com.google.common.collect.testing.features.CollectionFeature.SUPPO
 import static com.google.common.collect.testing.features.CollectionSize.ONE;
 import static com.google.common.collect.testing.features.CollectionSize.SEVERAL;
 import static com.google.common.collect.testing.features.MapFeature.ALLOWS_NULL_KEYS;
-import static com.google.common.collect.testing.features.MapFeature.ALLOWS_NULL_QUERIES;
+import static com.google.common.collect.testing.features.MapFeature.ALLOWS_NULL_KEY_QUERIES;
 import static com.google.common.collect.testing.features.MapFeature.SUPPORTS_REMOVE;
-import static org.truth0.Truth.ASSERT;
+import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.Multimap;
@@ -50,13 +50,13 @@ public class MultimapKeysTester<K, V> extends AbstractMultimapTester<K, V, Multi
     assertEquals(2, keys.count(sampleKeys().e0));
     assertEquals(1, keys.count(sampleKeys().e1));
     assertEquals(3, keys.size());
-    ASSERT.that(keys).has().allOf(sampleKeys().e0, sampleKeys().e1);
-    ASSERT.that(keys.entrySet()).has().allOf(
+    assertThat(keys).has().allOf(sampleKeys().e0, sampleKeys().e1);
+    assertThat(keys.entrySet()).has().allOf(
         Multisets.immutableEntry(sampleKeys().e0, 2),
         Multisets.immutableEntry(sampleKeys().e1, 1));
   }
   
-  @MapFeature.Require(ALLOWS_NULL_QUERIES)
+  @MapFeature.Require(ALLOWS_NULL_KEY_QUERIES)
   public void testKeysCountAbsentNullKey() {
     assertEquals(0, multimap().keys().count(null));
   }
@@ -72,8 +72,8 @@ public class MultimapKeysTester<K, V> extends AbstractMultimapTester<K, V, Multi
     assertEquals(2, keys.count(null));
     assertEquals(1, keys.count(sampleKeys().e1));
     assertEquals(3, keys.size());
-    ASSERT.that(keys).has().allOf(null, sampleKeys().e1);
-    ASSERT.that(keys.entrySet()).has().allOf(
+    assertThat(keys).has().allOf(null, sampleKeys().e1);
+    assertThat(keys.entrySet()).has().allOf(
         Multisets.immutableEntry((K) null, 2),
         Multisets.immutableEntry(sampleKeys().e1, 1));
   }

@@ -16,12 +16,12 @@
 
 package com.google.common.eventbus;
 
-import java.util.Collection;
+
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import junit.framework.TestCase;
 
@@ -98,12 +98,12 @@ public class EventBusTest extends TestCase {
     bus.register(compCatcher);
 
     // Two additional event types: Object and Comparable<?> (played by Integer)
-    final Object OBJ_EVENT = new Object();
-    final Object COMP_EVENT = new Integer(6);
+    Object objEvent = new Object();
+    Object compEvent = new Integer(6);
 
     bus.post(EVENT);
-    bus.post(OBJ_EVENT);
-    bus.post(COMP_EVENT);
+    bus.post(objEvent);
+    bus.post(compEvent);
 
     // Check the StringCatcher...
     List<String> stringEvents = stringCatcher.getEvents();
@@ -118,9 +118,9 @@ public class EventBusTest extends TestCase {
     assertEquals("String fixture must be first object delivered.",
         EVENT, objectEvents.get(0));
     assertEquals("Object fixture must be second object delivered.",
-        OBJ_EVENT, objectEvents.get(1));
+        objEvent, objectEvents.get(1));
     assertEquals("Comparable fixture must be thirdobject delivered.",
-        COMP_EVENT, objectEvents.get(2));
+        compEvent, objectEvents.get(2));
 
     // Check the Catcher<Comparable<?>>...
     assertEquals("Two Comparable<?>s should be delivered.",
@@ -128,7 +128,7 @@ public class EventBusTest extends TestCase {
     assertEquals("String fixture must be first comparable delivered.",
         EVENT, compEvents.get(0));
     assertEquals("Comparable fixture must be second comparable delivered.",
-        COMP_EVENT, compEvents.get(1));
+        compEvent, compEvents.get(1));
   }
 
   public void testSubscriberThrowsException() throws Exception{
@@ -215,18 +215,6 @@ public class EventBusTest extends TestCase {
         EVENT, events.get(0).getEvent());
   }
 
-  public void testFlattenHierarchy() {
-    HierarchyFixture fixture = new HierarchyFixture();
-    Set<Class<?>> hierarchy = bus.flattenHierarchy(fixture.getClass());
-
-    assertEquals(5, hierarchy.size());
-    assertContains(Object.class, hierarchy);
-    assertContains(HierarchyFixtureInterface.class, hierarchy);
-    assertContains(HierarchyFixtureSubinterface.class, hierarchy);
-    assertContains(HierarchyFixtureParent.class, hierarchy);
-    assertContains(HierarchyFixture.class, hierarchy);
-  }
-
   public void testMissingSubscribe() {
     bus.register(new Object());
   }
@@ -303,13 +291,30 @@ public class EventBusTest extends TestCase {
     }
   }
 
-  private <T> void assertContains(T element, Collection<T> collection) {
-    assertTrue("Collection must contain " + element,
-        collection.contains(element));
+  /**
+   * Tests that bridge methods are not subscribed to events. In Java 8,
+   * annotations are included on the bridge method in addition to the original
+   * method, which causes both the original and bridge methods to be subscribed
+   * (since both are annotated @Subscribe) without specifically checking for
+   * bridge methods.
+   */
+  public void testRegistrationWithBridgeMethod() {
+    final AtomicInteger calls = new AtomicInteger();
+    bus.register(new Callback<String>() {
+      @Subscribe
+      @Override
+      public void call(String s) {
+        calls.incrementAndGet();
+      }
+    });
+
+    bus.post("hello");
+
+    assertEquals(1, calls.get());
   }
 
   /**
-   * Records a thrown exception information.
+   * Records thrown exception information.
    */
   private static final class RecordingSubscriberExceptionHandler
       implements SubscriberExceptionHandler {
@@ -322,7 +327,6 @@ public class EventBusTest extends TestCase {
         SubscriberExceptionContext context) {
       this.exception = exception;
       this.context = context;
-
     }
   }
 
@@ -366,22 +370,7 @@ public class EventBusTest extends TestCase {
     }
   }
 
-  public interface HierarchyFixtureInterface {
-    // Exists only for hierarchy mapping; no members.
+  private interface Callback<T> {
+    void call(T t);
   }
-
-  public interface HierarchyFixtureSubinterface
-      extends HierarchyFixtureInterface {
-    // Exists only for hierarchy mapping; no members.
-  }
-
-  public static class HierarchyFixtureParent
-      implements HierarchyFixtureSubinterface {
-    // Exists only for hierarchy mapping; no members.
-  }
-
-  public static class HierarchyFixture extends HierarchyFixtureParent {
-    // Exists only for hierarchy mapping; no members.
-  }
-
 }

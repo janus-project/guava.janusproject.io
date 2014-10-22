@@ -17,22 +17,24 @@
 package com.google.common.util.concurrent;
 
 import static com.google.common.base.Throwables.propagateIfInstanceOf;
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.util.concurrent.Futures.allAsList;
 import static com.google.common.util.concurrent.Futures.get;
 import static com.google.common.util.concurrent.Futures.getUnchecked;
 import static com.google.common.util.concurrent.Futures.immediateFailedFuture;
 import static com.google.common.util.concurrent.Futures.immediateFuture;
 import static com.google.common.util.concurrent.Futures.successfulAsList;
-import static com.google.common.util.concurrent.MoreExecutors.sameThreadExecutor;
+import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
+import static com.google.common.util.concurrent.MoreExecutors.newDirectExecutorService;
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.easymock.EasyMock.expect;
-import static org.truth0.Truth.ASSERT;
 
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.base.Joiner;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -60,6 +62,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Handler;
@@ -150,9 +153,46 @@ public class FuturesTest extends TestCase {
   }
 
   public void testImmediateCancelledFuture() throws Exception {
-    ListenableFuture<String> future =
-        Futures.immediateCancelledFuture();
+    ListenableFuture<String> future = CallerClass1.immediateCancelledFuture();
     assertTrue(future.isCancelled());
+
+    try {
+      CallerClass2.get(future);
+      fail();
+    } catch (CancellationException e) {
+      // There should be two CancellationException chained together.  The outer one should have the
+      // stack trace of where the get() call was made, and the inner should have the stack trace of
+      // where the immediateCancelledFuture() call was made.
+      List<StackTraceElement> stackTrace = ImmutableList.copyOf(e.getStackTrace());
+      assertFalse(Iterables.any(stackTrace, hasClassName(CallerClass1.class)));
+      assertTrue(Iterables.any(stackTrace, hasClassName(CallerClass2.class)));
+
+      assertTrue(e.getCause() instanceof CancellationException);
+      stackTrace = ImmutableList.copyOf(e.getCause().getStackTrace());
+      assertTrue(Iterables.any(stackTrace, hasClassName(CallerClass1.class)));
+      assertFalse(Iterables.any(stackTrace, hasClassName(CallerClass2.class)));
+    }
+  }
+
+  private static Predicate<StackTraceElement> hasClassName(final Class<?> clazz) {
+    return new Predicate<StackTraceElement>() {
+      @Override
+      public boolean apply(StackTraceElement element) {
+        return element.getClassName().equals(clazz.getName());
+      }
+    };
+  }
+
+  private static final class CallerClass1 {
+    static ListenableFuture<String> immediateCancelledFuture() {
+      return Futures.immediateCancelledFuture();
+    }
+  }
+
+  private static final class CallerClass2 {
+    static <V> V get(ListenableFuture<V> future) throws ExecutionException, InterruptedException {
+      return future.get();
+    }
   }
 
   private static class MyException extends Exception {}
@@ -275,6 +315,22 @@ public class FuturesTest extends TestCase {
     assertTrue(Futures.transform(immediate, function).cancel(true));
     assertTrue(secondary.isCancelled());
     assertTrue(secondary.wasInterrupted());
+  }
+
+  public void testTransform_rejectionPropagatesToOutput()
+      throws Exception {
+    SettableFuture<Foo> input = SettableFuture.create();
+    ExecutorService executor = newDirectExecutorService();
+    ListenableFuture<String> transformed =
+        Futures.transform(input, Functions.toStringFunction(), executor);
+    executor.shutdown();
+    input.set(new Foo());
+    try {
+      transformed.get(5, TimeUnit.SECONDS);
+      fail();
+    } catch (ExecutionException expected) {
+      assertTrue(expected.getCause() instanceof RejectedExecutionException);
+    }
   }
 
   /**
@@ -420,7 +476,7 @@ public class FuturesTest extends TestCase {
 
   public void testTransform_Executor() throws Exception {
     Object value = new Object();
-    ExecutorSpy spy = new ExecutorSpy(MoreExecutors.sameThreadExecutor());
+    ExecutorSpy spy = new ExecutorSpy(directExecutor());
 
     assertFalse(spy.wasExecuted);
 
@@ -807,7 +863,7 @@ public class FuturesTest extends TestCase {
 
     // Attach a listener
     SingleCallListener listener = new SingleCallListener();
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
 
     // Satisfy each input and check the output
     assertFalse(compound.isDone());
@@ -821,7 +877,7 @@ public class FuturesTest extends TestCase {
     assertTrue(listener.wasCalled());
 
     List<String> results = compound.get();
-    ASSERT.that(results).has().exactly(DATA1, DATA2, DATA3).inOrder();
+    assertThat(results).has().exactly(DATA1, DATA2, DATA3).inOrder();
   }
 
   public void testAllAsList_emptyList() throws Exception {
@@ -829,7 +885,7 @@ public class FuturesTest extends TestCase {
     listener.expectCall();
     List<ListenableFuture<String>> futures = ImmutableList.of();
     ListenableFuture<List<String>> compound = Futures.allAsList(futures);
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
     assertTrue(compound.isDone());
     assertTrue(compound.get().isEmpty());
     assertTrue(listener.wasCalled());
@@ -840,7 +896,7 @@ public class FuturesTest extends TestCase {
     listener.expectCall();
     @SuppressWarnings("unchecked") // array is never modified
     ListenableFuture<List<String>> compound = Futures.allAsList();
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
     assertTrue(compound.isDone());
     assertTrue(compound.get().isEmpty());
     assertTrue(listener.wasCalled());
@@ -853,7 +909,7 @@ public class FuturesTest extends TestCase {
     @SuppressWarnings("unchecked") // array is never modified
     ListenableFuture<List<String>> compound =
         Futures.allAsList(future1, future2);
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
 
     listener.expectCall();
     Throwable exception = new Throwable("failed1");
@@ -919,7 +975,7 @@ public class FuturesTest extends TestCase {
     @SuppressWarnings("unchecked") // array is never modified
     ListenableFuture<List<String>> compound =
         Futures.allAsList(future1, future2);
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
 
     listener.expectCall();
     future1.cancel(true);
@@ -990,13 +1046,13 @@ public class FuturesTest extends TestCase {
     // Attach a listener
     SingleCallListener listener = new SingleCallListener();
     listener.expectCall();
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
 
     assertTrue(compound.isDone());
     assertTrue(listener.wasCalled());
 
     List<String> results = compound.get();
-    ASSERT.that(results).has().exactly(DATA1, DATA2, DATA3).inOrder();
+    assertThat(results).has().exactly(DATA1, DATA2, DATA3).inOrder();
   }
 
   /**
@@ -1450,7 +1506,7 @@ public class FuturesTest extends TestCase {
 
     // Attach a listener
     SingleCallListener listener = new SingleCallListener();
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
 
     // Satisfy each input and check the output
     assertFalse(compound.isDone());
@@ -1464,7 +1520,7 @@ public class FuturesTest extends TestCase {
     assertTrue(listener.wasCalled());
 
     List<String> results = compound.get();
-    ASSERT.that(results).has().exactly(DATA1, DATA2, DATA3).inOrder();
+    assertThat(results).has().exactly(DATA1, DATA2, DATA3).inOrder();
   }
 
   public void testSuccessfulAsList_emptyList() throws Exception {
@@ -1472,7 +1528,7 @@ public class FuturesTest extends TestCase {
     listener.expectCall();
     List<ListenableFuture<String>> futures = ImmutableList.of();
     ListenableFuture<List<String>> compound = Futures.successfulAsList(futures);
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
     assertTrue(compound.isDone());
     assertTrue(compound.get().isEmpty());
     assertTrue(listener.wasCalled());
@@ -1483,7 +1539,7 @@ public class FuturesTest extends TestCase {
     listener.expectCall();
     @SuppressWarnings("unchecked") // array is never modified
     ListenableFuture<List<String>> compound = Futures.successfulAsList();
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
     assertTrue(compound.isDone());
     assertTrue(compound.get().isEmpty());
     assertTrue(listener.wasCalled());
@@ -1496,7 +1552,7 @@ public class FuturesTest extends TestCase {
     @SuppressWarnings("unchecked") // array is never modified
     ListenableFuture<List<String>> compound =
         Futures.successfulAsList(future1, future2);
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
 
     assertFalse(compound.isDone());
     future1.setException(new Throwable("failed1"));
@@ -1507,7 +1563,7 @@ public class FuturesTest extends TestCase {
     assertTrue(listener.wasCalled());
 
     List<String> results = compound.get();
-    ASSERT.that(results).has().exactly(null, DATA2).inOrder();
+    assertThat(results).has().exactly(null, DATA2).inOrder();
   }
 
   public void testSuccessfulAsList_totalFailure() throws Exception {
@@ -1517,7 +1573,7 @@ public class FuturesTest extends TestCase {
     @SuppressWarnings("unchecked") // array is never modified
     ListenableFuture<List<String>> compound =
         Futures.successfulAsList(future1, future2);
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
 
     assertFalse(compound.isDone());
     future1.setException(new Throwable("failed1"));
@@ -1528,7 +1584,7 @@ public class FuturesTest extends TestCase {
     assertTrue(listener.wasCalled());
 
     List<String> results = compound.get();
-    ASSERT.that(results).has().exactly(null, null).inOrder();
+    assertThat(results).has().exactly(null, null).inOrder();
   }
 
   public void testSuccessfulAsList_cancelled() throws Exception {
@@ -1538,7 +1594,7 @@ public class FuturesTest extends TestCase {
     @SuppressWarnings("unchecked") // array is never modified
     ListenableFuture<List<String>> compound =
         Futures.successfulAsList(future1, future2);
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
 
     assertFalse(compound.isDone());
     future1.cancel(true);
@@ -1549,7 +1605,7 @@ public class FuturesTest extends TestCase {
     assertTrue(listener.wasCalled());
 
     List<String> results = compound.get();
-    ASSERT.that(results).has().exactly(null, DATA2).inOrder();
+    assertThat(results).has().exactly(null, DATA2).inOrder();
   }
 
   public void testSuccessfulAsList_resultCancelled() throws Exception {
@@ -1624,7 +1680,7 @@ public class FuturesTest extends TestCase {
         // Now attempt to trigger the exception:
         future2.set(DATA2);
       }
-    }, sameThreadExecutor());
+    }, directExecutor());
     assertTrue(compound.cancel(false));
     assertTrue(compound.isCancelled());
     assertTrue(future1.isCancelled());
@@ -1661,7 +1717,7 @@ public class FuturesTest extends TestCase {
     @SuppressWarnings("unchecked") // array is never modified
     ListenableFuture<List<String>> compound =
         Futures.successfulAsList(future1, future2, future3);
-    compound.addListener(listener, MoreExecutors.sameThreadExecutor());
+    compound.addListener(listener, directExecutor());
 
     // First is cancelled, second fails, third succeeds
     assertFalse(compound.isDone());
@@ -1675,7 +1731,7 @@ public class FuturesTest extends TestCase {
     assertTrue(listener.wasCalled());
 
     List<String> results = compound.get();
-    ASSERT.that(results).has().exactly(null, null, DATA3).inOrder();
+    assertThat(results).has().exactly(null, null, DATA3).inOrder();
   }
 
   /** Non-Error exceptions are never logged. */
@@ -2337,8 +2393,130 @@ public class FuturesTest extends TestCase {
           ExceptionWithoutThrowableConstructor.class);
       fail();
     } catch (ExceptionWithoutThrowableConstructor expected) {
-      ASSERT.that(expected.getMessage()).contains("mymessage");
+      assertThat(expected.getMessage()).contains("mymessage");
       assertEquals(CHECKED_EXCEPTION, expected.getCause());
+    }
+  }
+
+  public void testCompletionOrder() throws Exception {
+    SettableFuture<Long> future1 = SettableFuture.create();
+    SettableFuture<Long> future2 = SettableFuture.create();
+    SettableFuture<Long> future3 = SettableFuture.create();
+    SettableFuture<Long> future4 = SettableFuture.create();
+    SettableFuture<Long> future5 = SettableFuture.create();
+
+    ImmutableList<ListenableFuture<Long>> futures = Futures.inCompletionOrder(
+        ImmutableList.<ListenableFuture<Long>>of(future1, future2, future3, future4, future5));
+    future2.set(1L);
+    future5.set(2L);
+    future1.set(3L);
+    future3.set(4L);
+    future4.set(5L);
+
+    long expected = 1L;
+    for (ListenableFuture<Long> future : futures) {
+      assertEquals((Long) expected, future.get());
+      expected++;
+    }
+  }
+
+  public void testCompletionOrderExceptionThrown() throws Exception {
+    SettableFuture<Long> future1 = SettableFuture.create();
+    SettableFuture<Long> future2 = SettableFuture.create();
+    SettableFuture<Long> future3 = SettableFuture.create();
+    SettableFuture<Long> future4 = SettableFuture.create();
+    SettableFuture<Long> future5 = SettableFuture.create();
+
+    ImmutableList<ListenableFuture<Long>> futures = Futures.inCompletionOrder(
+        ImmutableList.<ListenableFuture<Long>>of(future1, future2, future3, future4, future5));
+    future2.set(1L);
+    future5.setException(new IllegalStateException("2L"));
+    future1.set(3L);
+    future3.set(4L);
+    future4.set(5L);
+
+    long expected = 1L;
+    for (ListenableFuture<Long> future : futures) {
+      if (expected != 2) {
+        assertEquals((Long) expected, future.get());
+      } else {
+        try {
+          future.get();
+          fail();
+        } catch (ExecutionException e) {
+          // Expected
+          assertEquals("2L", e.getCause().getMessage());
+        }
+      }
+      expected++;
+    }
+  }
+
+  public void testCompletionOrderFutureCancelled() throws Exception {
+    SettableFuture<Long> future1 = SettableFuture.create();
+    SettableFuture<Long> future2 = SettableFuture.create();
+    SettableFuture<Long> future3 = SettableFuture.create();
+    SettableFuture<Long> future4 = SettableFuture.create();
+    SettableFuture<Long> future5 = SettableFuture.create();
+
+    ImmutableList<ListenableFuture<Long>> futures = Futures.inCompletionOrder(
+        ImmutableList.<ListenableFuture<Long>>of(future1, future2, future3, future4, future5));
+    future2.set(1L);
+    future5.set(2L);
+    future1.set(3L);
+    future3.cancel(true);
+    future4.set(5L);
+
+    long expected = 1L;
+    for (ListenableFuture<Long> future : futures) {
+      if (expected != 4) {
+        assertEquals((Long) expected, future.get());
+      } else {
+        try {
+          future.get();
+          fail();
+        } catch (CancellationException e) {
+          // Expected
+        }
+      }
+      expected++;
+    }
+  }
+
+  public void testCancellingADelegateDoesNotPropagate() throws Exception {
+    SettableFuture<Long> future1 = SettableFuture.create();
+    SettableFuture<Long> future2 = SettableFuture.create();
+
+    ImmutableList<ListenableFuture<Long>> delegates = Futures.inCompletionOrder(
+        ImmutableList.<ListenableFuture<Long>>of(future1, future2));
+
+    future1.set(1L);
+    // Cannot cancel a complete delegate
+    assertFalse(delegates.get(0).cancel(true));
+    // Cancel the delegate before the input future is done
+    assertTrue(delegates.get(1).cancel(true));
+    // Setting the future still works since cancellation didn't propagate
+    assertTrue(future2.set(2L));
+    // Second check to ensure the input future was not cancelled
+    assertEquals((Long) 2L, future2.get());
+  }
+
+  // Mostly an example of how it would look like to use a list of mixed types
+  public void testCompletionOrderMixedBagOTypes() throws Exception {
+    SettableFuture<Long> future1 = SettableFuture.create();
+    SettableFuture<String> future2 = SettableFuture.create();
+    SettableFuture<Integer> future3 = SettableFuture.create();
+
+    ImmutableList<? extends ListenableFuture<?>> inputs =
+        ImmutableList.<ListenableFuture<?>>of(future1, future2, future3);
+    ImmutableList<ListenableFuture<Object>> futures = Futures.inCompletionOrder(inputs);
+    future2.set("1L");
+    future1.set(2L);
+    future3.set(3);
+
+    ImmutableList<?> expected = ImmutableList.of("1L", 2L, 3);
+    for (int i = 0; i < expected.size(); i++) {
+      assertEquals(expected.get(i), futures.get(i).get());
     }
   }
 

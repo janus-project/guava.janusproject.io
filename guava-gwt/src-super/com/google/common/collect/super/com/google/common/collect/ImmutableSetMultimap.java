@@ -16,14 +16,14 @@
 
 package com.google.common.collect;
 
-import static com.google.common.base.Objects.firstNonNull;
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
+import com.google.common.base.MoreObjects;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -203,6 +203,18 @@ public class ImmutableSetMultimap<K, V>
           checkNotNull(entry.getKey()), checkNotNull(entry.getValue()));
       return this;
     }
+    
+    /**
+     * {@inheritDoc}
+     * 
+     * @since 19.0
+     */
+    @Beta
+    @Override public Builder<K, V> putAll(
+        Iterable<? extends Entry<? extends K, ? extends V>> entries) {
+      super.putAll(entries);
+      return this;
+    }
 
     @Override public Builder<K, V> putAll(K key, Iterable<? extends V> values) {
       Collection<V> collection = builderMultimap.get(checkNotNull(key));
@@ -260,11 +272,9 @@ public class ImmutableSetMultimap<K, V>
     @Override public ImmutableSetMultimap<K, V> build() {
       if (keyComparator != null) {
         Multimap<K, V> sortedCopy = new BuilderMultimap<K, V>();
-        List<Map.Entry<K, Collection<V>>> entries = Lists.newArrayList(
-            builderMultimap.asMap().entrySet());
-        Collections.sort(
-            entries,
-            Ordering.from(keyComparator).<K>onKeys());
+        List<Map.Entry<K, Collection<V>>> entries =
+            Ordering.from(keyComparator).<K>onKeys().immutableSortedCopy(
+                builderMultimap.asMap().entrySet());
         for (Map.Entry<K, Collection<V>> entry : entries) {
           sortedCopy.putAll(entry.getKey(), entry.getValue());
         }
@@ -310,7 +320,8 @@ public class ImmutableSetMultimap<K, V>
       }
     }
 
-    ImmutableMap.Builder<K, ImmutableSet<V>> builder = ImmutableMap.builder();
+    ImmutableMap.Builder<K, ImmutableSet<V>> builder = 
+        new ImmutableMap.Builder<K, ImmutableSet<V>>(multimap.asMap().size());
     int size = 0;
 
     for (Entry<? extends K, ? extends Collection<? extends V>> entry
@@ -326,6 +337,22 @@ public class ImmutableSetMultimap<K, V>
 
     return new ImmutableSetMultimap<K, V>(
         builder.build(), size, valueComparator);
+  }
+
+  /**
+   * Returns an immutable multimap containing the specified entries.  The
+   * returned multimap iterates over keys in the order they were first
+   * encountered in the input, and the values for each key are iterated in the
+   * order they were encountered.  If two values for the same key are
+   * {@linkplain Object#equals equal}, the first value encountered is used.
+   *
+   * @throws NullPointerException if any key, value, or entry is null
+   * @since 19.0
+   */
+  @Beta
+  public static <K, V> ImmutableSetMultimap<K, V> copyOf(
+      Iterable<? extends Entry<? extends K, ? extends V>> entries) {
+    return new Builder<K, V>().putAll(entries).build();
   }
 
   /**
@@ -351,7 +378,7 @@ public class ImmutableSetMultimap<K, V>
   @Override public ImmutableSet<V> get(@Nullable K key) {
     // This cast is safe as its type is known in constructor.
     ImmutableSet<V> set = (ImmutableSet<V>) map.get(key);
-    return firstNonNull(set, emptySet);
+    return MoreObjects.firstNonNull(set, emptySet);
   }
 
   private transient ImmutableSetMultimap<V, K> inverse;

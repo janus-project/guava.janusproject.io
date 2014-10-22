@@ -284,7 +284,14 @@ public abstract class Converter<A, B> implements Function<A, B> {
    * <p>The returned converter is serializable if {@code this} converter and {@code secondConverter}
    * are.
    */
-  public <C> Converter<A, C> andThen(Converter<B, C> secondConverter) {
+  public final <C> Converter<A, C> andThen(Converter<B, C> secondConverter) {
+    return doAndThen(secondConverter);
+  }
+
+  /**
+   * Package-private non-final implementation of andThen() so only we can override it.
+   */
+  <C> Converter<A, C> doAndThen(Converter<B, C> secondConverter) {
     return new ConverterComposition<A, B, C>(this, checkNotNull(secondConverter));
   }
 
@@ -379,6 +386,69 @@ public abstract class Converter<A, B> implements Function<A, B> {
   // Static converters
 
   /**
+   * Returns a converter based on <i>existing</i> forward and backward functions. Note that it is
+   * unnecessary to create <i>new</i> classes implementing {@code Function} just to pass them in
+   * here. Instead, simply subclass {@code Converter} and implement its {@link #doForward} and
+   * {@link #doBackward} methods directly.
+   *
+   * <p>These functions will never be passed {@code null} and must not under any circumstances
+   * return {@code null}. If a value cannot be converted, the function should throw an unchecked
+   * exception (typically, but not necessarily, {@link IllegalArgumentException}).
+   *
+   * <p>The returned converter is serializable if both provided functions are.
+   *
+   * @since 17.0
+   */
+  public static <A, B> Converter<A, B> from(
+      Function<? super A, ? extends B> forwardFunction,
+      Function<? super B, ? extends A> backwardFunction) {
+    return new FunctionBasedConverter<A, B>(forwardFunction, backwardFunction);
+  }
+
+  private static final class FunctionBasedConverter<A, B>
+      extends Converter<A, B> implements Serializable {
+    private final Function<? super A, ? extends B> forwardFunction;
+    private final Function<? super B, ? extends A> backwardFunction;
+
+    private FunctionBasedConverter(
+        Function<? super A, ? extends B> forwardFunction,
+        Function<? super B, ? extends A> backwardFunction) {
+      this.forwardFunction = checkNotNull(forwardFunction);
+      this.backwardFunction = checkNotNull(backwardFunction);
+    }
+
+    @Override
+    protected B doForward(A a) {
+      return forwardFunction.apply(a);
+    }
+
+    @Override
+    protected A doBackward(B b) {
+      return backwardFunction.apply(b);
+    }
+
+    @Override
+    public boolean equals(@Nullable Object object) {
+      if (object instanceof FunctionBasedConverter) {
+        FunctionBasedConverter<?, ?> that = (FunctionBasedConverter<?, ?>) object;
+        return this.forwardFunction.equals(that.forwardFunction)
+            && this.backwardFunction.equals(that.backwardFunction);
+      }
+      return false;
+    }
+
+    @Override
+    public int hashCode() {
+      return forwardFunction.hashCode() * 31 + backwardFunction.hashCode();
+    }
+
+    @Override
+    public String toString() {
+      return "Converter.from(" + forwardFunction + ", " + backwardFunction + ")";
+    }
+  }
+
+  /**
    * Returns a serializable converter that always converts or reverses an object to itself.
    */
   @SuppressWarnings("unchecked") // implementation is "fully variant"
@@ -409,7 +479,7 @@ public abstract class Converter<A, B> implements Function<A, B> {
     }
 
     @Override
-    public <S> Converter<T, S> andThen(Converter<T, S> otherConverter) {
+    <S> Converter<T, S> doAndThen(Converter<T, S> otherConverter) {
       return checkNotNull(otherConverter, "otherConverter");
     }
 

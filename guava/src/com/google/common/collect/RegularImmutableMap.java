@@ -17,6 +17,7 @@
 package com.google.common.collect;
 
 import static com.google.common.collect.CollectPreconditions.checkEntryNotNull;
+import static com.google.common.collect.ImmutableMapEntry.createEntryArray;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.ImmutableMapEntry.TerminalEntry;
@@ -67,7 +68,7 @@ final class RegularImmutableMap<K, V> extends ImmutableMap<K, V> {
           : new NonTerminalMapEntry<K, V>(entry, existing);
       table[tableIndex] = newEntry;
       entries[entryIndex] = newEntry;
-      checkNoConflictInBucket(key, newEntry, existing);
+      checkNoConflictInKeyBucket(key, newEntry, existing);
     }
   }
   
@@ -94,14 +95,14 @@ final class RegularImmutableMap<K, V> extends ImmutableMap<K, V> {
           : new NonTerminalMapEntry<K, V>(key, value, existing);
       table[tableIndex] = newEntry;
       entries[entryIndex] = newEntry;
-      checkNoConflictInBucket(key, newEntry, existing);
+      checkNoConflictInKeyBucket(key, newEntry, existing);
     }
   }
 
-  private void checkNoConflictInBucket(
-      K key, ImmutableMapEntry<K, V> entry, ImmutableMapEntry<K, V> bucketHead) {
-    for (; bucketHead != null; bucketHead = bucketHead.getNextInKeyBucket()) {
-      checkNoConflict(!key.equals(bucketHead.getKey()), "key", entry, bucketHead);
+  static void checkNoConflictInKeyBucket(
+      Object key, Entry<?, ?> entry, @Nullable ImmutableMapEntry<?, ?> keyBucketHead) {
+    for (; keyBucketHead != null; keyBucketHead = keyBucketHead.getNextInKeyBucket()) {
+      checkNoConflict(!key.equals(keyBucketHead.getKey()), "key", entry, keyBucketHead);
     }
   }
   
@@ -138,25 +139,20 @@ final class RegularImmutableMap<K, V> extends ImmutableMap<K, V> {
    */
   private static final double MAX_LOAD_FACTOR = 1.2;
 
-  /**
-   * Creates an {@code ImmutableMapEntry} array to hold parameterized entries. The
-   * result must never be upcast back to ImmutableMapEntry[] (or Object[], etc.), or
-   * allowed to escape the class.
-   */
-  @SuppressWarnings("unchecked") // Safe as long as the javadocs are followed
-  private ImmutableMapEntry<K, V>[] createEntryArray(int size) {
-    return new ImmutableMapEntry[size];
-  }
-
   @Override public V get(@Nullable Object key) {
+    return get(key, table, mask);
+  }
+  
+  @Nullable 
+  static <V> V get(@Nullable Object key, ImmutableMapEntry<?, V>[] keyTable, int mask) {
     if (key == null) {
       return null;
     }
     int index = Hashing.smear(key.hashCode()) & mask;
-    for (ImmutableMapEntry<K, V> entry = table[index];
+    for (ImmutableMapEntry<?, V> entry = keyTable[index];
         entry != null;
         entry = entry.getNextInKeyBucket()) {
-      K candidateKey = entry.getKey();
+      Object candidateKey = entry.getKey();
 
       /*
        * Assume that equals uses the == optimization when appropriate, and that
@@ -182,24 +178,7 @@ final class RegularImmutableMap<K, V> extends ImmutableMap<K, V> {
 
   @Override
   ImmutableSet<Entry<K, V>> createEntrySet() {
-    return new EntrySet();
-  }
-
-  @SuppressWarnings("serial") // uses writeReplace(), not default serialization
-  private class EntrySet extends ImmutableMapEntrySet<K, V> {
-    @Override ImmutableMap<K, V> map() {
-      return RegularImmutableMap.this;
-    }
-
-    @Override
-    public UnmodifiableIterator<Entry<K, V>> iterator() {
-      return asList().iterator();
-    }
-
-    @Override
-    ImmutableList<Entry<K, V>> createAsList() {
-      return new RegularImmutableAsList<Entry<K, V>>(this, entries);
-    }
+    return new ImmutableMapEntrySet.RegularEntrySet<K, V>(this, entries);
   }
 
   // This class is never actually serialized directly, but we have to make the

@@ -88,7 +88,6 @@ public final class Floats {
    * @param b the second {@code float} to compare
    * @return the result of invoking {@link Float#compare(float, float)}
    */
-  // TODO(kevinb): if Ints.compare etc. are ever removed, remove this one too
   public static int compare(float a, float b) {
     return Float.compare(a, b);
   }
@@ -389,7 +388,7 @@ public final class Floats {
     public int compare(float[] left, float[] right) {
       int minLength = Math.min(left.length, right.length);
       for (int i = 0; i < minLength; i++) {
-        int result = Floats.compare(left[i], right[i]);
+        int result = Float.compare(left[i], right[i]);
         if (result != 0) {
           return result;
         }

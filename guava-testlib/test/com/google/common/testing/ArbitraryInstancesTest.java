@@ -40,7 +40,6 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.ImmutableTable;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MapConstraint;
 import com.google.common.collect.MapDifference;
@@ -54,6 +53,10 @@ import com.google.common.collect.SortedMapDifference;
 import com.google.common.collect.SortedMultiset;
 import com.google.common.collect.SortedSetMultimap;
 import com.google.common.collect.Table;
+import com.google.common.io.ByteSink;
+import com.google.common.io.ByteSource;
+import com.google.common.io.CharSink;
+import com.google.common.io.CharSource;
 import com.google.common.primitives.UnsignedInteger;
 import com.google.common.primitives.UnsignedLong;
 import com.google.common.util.concurrent.AtomicDouble;
@@ -165,7 +168,7 @@ public class ArbitraryInstancesTest extends TestCase {
   }
 
   public void testGet_collections() {
-    assertEquals(Iterators.emptyIterator(), ArbitraryInstances.get(Iterator.class));
+    assertEquals(ImmutableSet.of().iterator(), ArbitraryInstances.get(Iterator.class));
     assertFalse(ArbitraryInstances.get(PeekingIterator.class).hasNext());
     assertFalse(ArbitraryInstances.get(ListIterator.class).hasNext());
     assertEquals(ImmutableSet.of(), ArbitraryInstances.get(Iterable.class));
@@ -287,10 +290,12 @@ public class ArbitraryInstancesTest extends TestCase {
   }
 
   public void testGet_class() {
-    assertNull(ArbitraryInstances.get(SomeAbstractClass.class));
-    assertNull(ArbitraryInstances.get(WithPrivateConstructor.class));
+    assertSame(SomeAbstractClass.INSTANCE, ArbitraryInstances.get(SomeAbstractClass.class));
+    assertSame(WithPrivateConstructor.INSTANCE,
+        ArbitraryInstances.get(WithPrivateConstructor.class));
     assertNull(ArbitraryInstances.get(NoDefaultConstructor.class));
-    assertNull(ArbitraryInstances.get(WithExceptionalConstructor.class));
+    assertSame(WithExceptionalConstructor.INSTANCE,
+        ArbitraryInstances.get(WithExceptionalConstructor.class));
     assertNull(ArbitraryInstances.get(NonPublicClass.class));
   }
 
@@ -305,7 +310,7 @@ public class ArbitraryInstancesTest extends TestCase {
         Appendable.class, StringBuilder.class, StringBuffer.class,
         Throwable.class, Exception.class);
   }
-  
+
   public void testGet_io() throws IOException {
     assertEquals(-1, ArbitraryInstances.get(InputStream.class).read());
     assertEquals(-1, ArbitraryInstances.get(ByteArrayInputStream.class).read());
@@ -327,6 +332,10 @@ public class ArbitraryInstancesTest extends TestCase {
         ByteArrayOutputStream.class, OutputStream.class,
         Writer.class, StringWriter.class,
         PrintStream.class, PrintWriter.class);
+    assertEquals(ByteSource.empty(), ArbitraryInstances.get(ByteSource.class));
+    assertEquals(CharSource.empty(), ArbitraryInstances.get(CharSource.class));
+    assertNotNull(ArbitraryInstances.get(ByteSink.class));
+    assertNotNull(ArbitraryInstances.get(CharSink.class));
   }
 
   public void testGet_reflect() {
@@ -336,8 +345,54 @@ public class ArbitraryInstancesTest extends TestCase {
   }
 
   public void testGet_regex() {
-    assertEquals(Pattern.compile("").pattern(), ArbitraryInstances.get(Pattern.class).pattern());
+    assertEquals(Pattern.compile("").pattern(),
+        ArbitraryInstances.get(Pattern.class).pattern());
     assertEquals(0, ArbitraryInstances.get(MatchResult.class).groupCount());
+  }
+
+  public void testGet_usePublicConstant() {
+    assertSame(WithPublicConstant.INSTANCE,
+        ArbitraryInstances.get(WithPublicConstant.class));
+  }
+
+  public void testGet_useFirstPublicConstant() {
+    assertSame(WithPublicConstants.FIRST,
+        ArbitraryInstances.get(WithPublicConstants.class));
+  }
+
+  public void testGet_nullConstantIgnored() {
+    assertSame(FirstConstantIsNull.SECOND,
+        ArbitraryInstances.get(FirstConstantIsNull.class));
+  }
+
+  public void testGet_constantWithGenericsNotUsed() {
+    assertNull(ArbitraryInstances.get(WithGenericConstant.class));
+  }
+
+  public void testGet_nullConstant() {
+    assertNull(ArbitraryInstances.get(WithNullConstant.class));
+  }
+
+  public void testGet_constantTypeDoesNotMatch() {
+    assertNull(ArbitraryInstances.get(ParentClassHasConstant.class));
+  }
+
+  public void testGet_nonPublicConstantNotUsed() {
+    assertNull(ArbitraryInstances.get(NonPublicConstantIgnored.class));
+  }
+
+  public void testGet_nonStaticFieldNotUsed() {
+    assertNull(ArbitraryInstances.get(NonStaticFieldIgnored.class));
+  }
+
+  public void testGet_constructorPreferredOverConstants() {
+    assertNotNull(ArbitraryInstances.get(WithPublicConstructorAndConstant.class));
+    assertTrue(ArbitraryInstances.get(WithPublicConstructorAndConstant.class)
+        != ArbitraryInstances.get(WithPublicConstructorAndConstant.class));
+  }
+
+  public void testGet_nonFinalFieldNotUsed() {
+    assertNull(ArbitraryInstances.get(NonFinalFieldIgnored.class));
   }
 
   private static void assertFreshInstanceReturned(Class<?>... mutableClasses) {
@@ -358,6 +413,7 @@ public class ArbitraryInstancesTest extends TestCase {
   public interface SomeInterface {}
 
   public static abstract class SomeAbstractClass {
+    public static final SomeAbstractClass INSTANCE = new SomeAbstractClass() {};
     public SomeAbstractClass() {}
   }
 
@@ -365,15 +421,85 @@ public class ArbitraryInstancesTest extends TestCase {
     public NonPublicClass() {}
   }
   
-  private static class WithPrivateConstructor {}
+  private static class WithPrivateConstructor {
+    public static final WithPrivateConstructor INSTANCE = new WithPrivateConstructor();
+  }
   
   public static class NoDefaultConstructor {
     public NoDefaultConstructor(@SuppressWarnings("unused") int i) {}
   }
 
   public static class WithExceptionalConstructor {
+    public static final WithExceptionalConstructor INSTANCE =
+        new WithExceptionalConstructor("whatever");
+
     public WithExceptionalConstructor() {
       throw new RuntimeException();
     }
+    private WithExceptionalConstructor(String unused) {}
+  }
+
+  private static class WithPublicConstant {
+    public static final WithPublicConstant INSTANCE = new WithPublicConstant();
+  }
+
+  private static class ParentClassHasConstant
+      extends WithPublicConstant {}
+
+  public static class WithGenericConstant<T> {
+    public static final WithGenericConstant<String> STRING_CONSTANT =
+        new WithGenericConstant<String>();
+  
+    private WithGenericConstant() {}
+  }
+
+  public static class WithNullConstant {
+    public static final WithNullConstant NULL = null;
+  
+    private WithNullConstant() {}
+  }
+
+  public static class WithPublicConstructorAndConstant {
+    public static final WithPublicConstructorAndConstant INSTANCE =
+        new WithPublicConstructorAndConstant();
+  
+    public WithPublicConstructorAndConstant() {}
+  }
+
+  private static class WithPublicConstants {
+    public static final WithPublicConstants FIRST = new WithPublicConstants();
+
+    // To test that we pick the first constant alphabetically
+    @SuppressWarnings("unused")
+    public static final WithPublicConstants SECOND = new WithPublicConstants();
+  }
+
+  private static class FirstConstantIsNull {
+    // To test that null constant is ignored
+    @SuppressWarnings("unused")
+    public static final FirstConstantIsNull FIRST = null;
+    public static final FirstConstantIsNull SECOND = new FirstConstantIsNull();
+  }
+
+  public static class NonFinalFieldIgnored {
+    public static NonFinalFieldIgnored instance =
+        new NonFinalFieldIgnored();
+  
+    private NonFinalFieldIgnored() {}
+  }
+
+  public static class NonPublicConstantIgnored {
+    static final NonPublicConstantIgnored INSTANCE =
+        new NonPublicConstantIgnored();
+  
+    private NonPublicConstantIgnored() {}
+  }
+
+  public static class NonStaticFieldIgnored {
+    // This should cause infinite recursion. But it shouldn't be used anyway.
+    public final NonStaticFieldIgnored instance =
+        new NonStaticFieldIgnored();
+  
+    private NonStaticFieldIgnored() {}
   }
 }

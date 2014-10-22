@@ -31,8 +31,6 @@ import java.util.Set;
 /**
  * Utilities for collecting and validating tester requirements from annotations.
  *
- * <p>This class can be referenced in GWT tests.
- *
  * @author George van den Driessche
  */
 public class FeatureUtil {
@@ -216,7 +214,7 @@ public class FeatureUtil {
   private static TesterRequirements buildTesterRequirements(
       Annotation testerAnnotation)
       throws ConflictingRequirementsException {
-    Class<? extends Annotation> annotationClass = testerAnnotation.getClass();
+    Class<? extends Annotation> annotationClass = testerAnnotation.annotationType();
     final Feature<?>[] presentFeatures;
     final Feature<?>[] absentFeatures;
     try {

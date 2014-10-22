@@ -28,6 +28,7 @@ import com.google.common.base.Optional;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.base.Splitter;
+import com.google.common.base.Stopwatch;
 import com.google.common.base.Ticker;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ClassToInstanceMap;
@@ -67,6 +68,11 @@ import com.google.common.collect.Table;
 import com.google.common.collect.Tables;
 import com.google.common.collect.TreeBasedTable;
 import com.google.common.collect.TreeMultimap;
+import com.google.common.io.ByteSink;
+import com.google.common.io.ByteSource;
+import com.google.common.io.ByteStreams;
+import com.google.common.io.CharSink;
+import com.google.common.io.CharSource;
 import com.google.common.primitives.Primitives;
 import com.google.common.primitives.UnsignedInteger;
 import com.google.common.primitives.UnsignedLong;
@@ -86,6 +92,7 @@ import java.io.Writer;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.GenericDeclaration;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
@@ -102,6 +109,7 @@ import java.nio.LongBuffer;
 import java.nio.ShortBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Currency;
@@ -134,6 +142,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.MatchResult;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
@@ -142,11 +151,13 @@ import javax.annotation.Nullable;
  * Supplies an arbitrary "default" instance for a wide range of types, often useful in testing
  * utilities.
  * 
- * <p>Covers common types defined in {@code java.lang}, {@code java.lang.reflect}, {@code java.io},
- * {@code java.nio}, {@code java.math}, {@code java.util}, {@code java.util.concurrent},
- * {@code java.util.regex}, {@code com.google.common.base}, {@code com.google.common.collect}
- * and {@code com.google.common.primitives}. In addition, any public class that exposes a public
- * parameter-less constructor will be "new"d and returned.
+ * <p>Covers arrays, enums and common types defined in {@code java.lang}, {@code java.lang.reflect},
+ * {@code java.io}, {@code java.nio}, {@code java.math}, {@code java.util}, {@code
+ * java.util.concurrent}, {@code java.util.regex}, {@code com.google.common.base}, {@code
+ * com.google.common.collect} and {@code com.google.common.primitives}. In addition, if the type
+ * exposes at least one public static final constant of the same type, one of the constants will be
+ * used; or if the class exposes a public parameter-less constructor then it will be "new"d and
+ * returned.
  * 
  * <p>All default instances returned by {@link #get} are generics-safe. Clients won't get type
  * errors for using {@code get(Comparator.class)} as a {@code Comparator<Foo>}, for example.
@@ -161,6 +172,23 @@ import javax.annotation.Nullable;
 @Beta
 public final class ArbitraryInstances {
 
+  private static final Ordering<Field> BY_FIELD_NAME = new Ordering<Field>() {
+    @Override public int compare(Field left, Field right) {
+      return left.getName().compareTo(right.getName());
+    }
+  };
+
+  /**
+   * Returns a new {@code MatchResult} that corresponds to a successful match. Apache Harmony (used
+   * in Android) requires a successful match in order to generate a {@code MatchResult}:
+   * http://goo.gl/5VQFmC
+   */
+  private static MatchResult newMatchResult() {
+    Matcher matcher = Pattern.compile(".").matcher("X");
+    matcher.find();
+    return matcher.toMatchResult();
+  }
+
   private static final ClassToInstanceMap<Object> DEFAULTS = ImmutableClassToInstanceMap.builder()
       // primitives
       .put(Object.class, "")
@@ -172,7 +200,7 @@ public final class ArbitraryInstances {
       .put(CharSequence.class, "")
       .put(String.class, "")
       .put(Pattern.class, Pattern.compile(""))
-      .put(MatchResult.class, Pattern.compile("").matcher("").toMatchResult())
+      .put(MatchResult.class, newMatchResult())
       .put(TimeUnit.class, TimeUnit.SECONDS)
       .put(Charset.class, Charsets.UTF_8)
       .put(Currency.class, Currency.getInstance(Locale.US))
@@ -185,6 +213,7 @@ public final class ArbitraryInstances {
       .put(Predicate.class, Predicates.alwaysTrue())
       .put(Equivalence.class, Equivalence.equals())
       .put(Ticker.class, Ticker.systemTicker())
+      .put(Stopwatch.class, Stopwatch.createUnstarted())
       // io types
       .put(InputStream.class, new ByteArrayInputStream(new byte[0]))
       .put(ByteArrayInputStream.class, new ByteArrayInputStream(new byte[0]))
@@ -200,8 +229,12 @@ public final class ArbitraryInstances {
       .put(FloatBuffer.class, FloatBuffer.allocate(0))
       .put(DoubleBuffer.class, DoubleBuffer.allocate(0))
       .put(File.class, new File(""))
+      .put(ByteSource.class, ByteSource.empty())
+      .put(CharSource.class, CharSource.empty())
+      .put(ByteSink.class, NullByteSink.INSTANCE)
+      .put(CharSink.class, NullByteSink.INSTANCE.asCharSink(Charsets.UTF_8))
       // All collections are immutable empty. So safe for any type parameter.
-      .put(Iterator.class, Iterators.emptyIterator())
+      .put(Iterator.class, ImmutableSet.of().iterator())
       .put(PeekingIterator.class, Iterators.peekingIterator(Iterators.emptyIterator()))
       .put(ListIterator.class, ImmutableList.of().listIterator())
       .put(Iterable.class, ImmutableSet.of())
@@ -296,8 +329,8 @@ public final class ArbitraryInstances {
   private static final Logger logger = Logger.getLogger(ArbitraryInstances.class.getName());
 
   /**
-   * Returns an arbitrary value for {@code type} as the null value, or {@code null} if empty-ness is
-   * unknown for the type.
+   * Returns an arbitrary instance for {@code type}, or {@code null} if no arbitrary instance can
+   * be determined.
    */
   @Nullable public static <T> T get(Class<T> type) {
     T defaultValue = DEFAULTS.getInstance(type);
@@ -322,13 +355,13 @@ public final class ArbitraryInstances {
       return jvmDefault;
     }
     if (Modifier.isAbstract(type.getModifiers()) || !Modifier.isPublic(type.getModifiers())) {
-      return null;
+      return arbitraryConstantInstanceOrNull(type);
     }
     final Constructor<T> constructor;
     try {
       constructor = type.getConstructor();
     } catch (NoSuchMethodException e) {
-      return null;
+      return arbitraryConstantInstanceOrNull(type);
     }
     constructor.setAccessible(true); // accessibility check is too slow
     try {
@@ -339,13 +372,36 @@ public final class ArbitraryInstances {
       throw new AssertionError(impossible);
     } catch (InvocationTargetException e) {
       logger.log(Level.WARNING, "Exception while invoking default constructor.", e.getCause());
-      return null;
+      return arbitraryConstantInstanceOrNull(type);
     }
   }
 
-  @SuppressWarnings("unchecked") // same component type means same array type
+  @Nullable private static <T> T arbitraryConstantInstanceOrNull(Class<T> type) {
+    Field[] fields = type.getDeclaredFields();
+    Arrays.sort(fields, BY_FIELD_NAME);
+    for (Field field : fields) {
+      if (Modifier.isPublic(field.getModifiers())
+          && Modifier.isStatic(field.getModifiers())
+          && Modifier.isFinal(field.getModifiers())) {
+        if (field.getGenericType() == field.getType()
+            && type.isAssignableFrom(field.getType())) {
+          field.setAccessible(true);
+          try {
+            T constant = type.cast(field.get(null));
+            if (constant != null) {
+              return constant;
+            }
+          } catch (IllegalAccessException impossible) {
+            throw new AssertionError(impossible);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   private static <T> T createEmptyArray(Class<T> arrayType) {
-    return (T) Array.newInstance(arrayType.getComponentType(), 0);
+    return arrayType.cast(Array.newInstance(arrayType.getComponentType(), 0));
   }
 
   // Internal implementations of some classes, with public default constructor that get() needs.
@@ -394,6 +450,14 @@ public final class ArbitraryInstances {
 
     public static final class DummyExecutor implements Executor, Serializable {
       @Override public void execute(Runnable command) {}
+    }
+  }
+
+  private static final class NullByteSink extends ByteSink implements Serializable {
+    private static final NullByteSink INSTANCE = new NullByteSink();
+
+    @Override public OutputStream openStream() {
+      return ByteStreams.nullOutputStream();
     }
   }
 

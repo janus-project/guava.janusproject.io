@@ -106,7 +106,7 @@ public class MapTestSuiteBuilder<K, V>
           .createTestSuite());
     }
 
-    derivedSuites.add(SetTestSuiteBuilder.using(
+    derivedSuites.add(createDerivedEntrySetSuite(
             new MapEntrySetGenerator<K, V>(parentBuilder.getSubjectGenerator()))
         .withFeatures(computeEntrySetFeatures(parentBuilder.getFeatures()))
         .named(parentBuilder.getName() + " entrySet")
@@ -120,7 +120,7 @@ public class MapTestSuiteBuilder<K, V>
         .suppressing(parentBuilder.getSuppressedTests())
         .createTestSuite());
 
-    derivedSuites.add(CollectionTestSuiteBuilder.using(
+    derivedSuites.add(createDerivedValueCollectionSuite(
             new MapValueCollectionGenerator<K, V>(
                 parentBuilder.getSubjectGenerator()))
         .named(parentBuilder.getName() + " values")
@@ -132,8 +132,18 @@ public class MapTestSuiteBuilder<K, V>
     return derivedSuites;
   }
 
+  protected SetTestSuiteBuilder<Map.Entry<K, V>> createDerivedEntrySetSuite(
+      TestSetGenerator<Map.Entry<K, V>> entrySetGenerator) {
+    return SetTestSuiteBuilder.using(entrySetGenerator);
+  }
+
   protected SetTestSuiteBuilder<K> createDerivedKeySetSuite(TestSetGenerator<K> keySetGenerator) {
     return SetTestSuiteBuilder.using(keySetGenerator);
+  }
+
+  protected CollectionTestSuiteBuilder<V> createDerivedValueCollectionSuite(
+      TestCollectionGenerator<V> valueCollectionGenerator) {
+    return CollectionTestSuiteBuilder.using(valueCollectionGenerator);
   }
 
   private static Set<Feature<?>> computeReserializedMapFeatures(
@@ -148,7 +158,9 @@ public class MapTestSuiteBuilder<K, V>
       Set<Feature<?>> mapFeatures) {
     Set<Feature<?>> entrySetFeatures =
         computeCommonDerivedCollectionFeatures(mapFeatures);
-    entrySetFeatures.add(CollectionFeature.ALLOWS_NULL_QUERIES);
+    if (mapFeatures.contains(MapFeature.ALLOWS_NULL_ENTRY_QUERIES)) {
+      entrySetFeatures.add(CollectionFeature.ALLOWS_NULL_QUERIES);
+    }
     return entrySetFeatures;
   }
 
@@ -162,7 +174,7 @@ public class MapTestSuiteBuilder<K, V>
     keySetFeatures.add(CollectionFeature.SUBSET_VIEW);
     if (mapFeatures.contains(MapFeature.ALLOWS_NULL_KEYS)) {
       keySetFeatures.add(CollectionFeature.ALLOWS_NULL_VALUES);
-    } else if (mapFeatures.contains(MapFeature.ALLOWS_NULL_QUERIES)) {
+    } else if (mapFeatures.contains(MapFeature.ALLOWS_NULL_KEY_QUERIES)) {
       keySetFeatures.add(CollectionFeature.ALLOWS_NULL_QUERIES);
     }
 
@@ -173,7 +185,7 @@ public class MapTestSuiteBuilder<K, V>
       Set<Feature<?>> mapFeatures) {
     Set<Feature<?>> valuesCollectionFeatures =
         computeCommonDerivedCollectionFeatures(mapFeatures);
-    if (mapFeatures.contains(MapFeature.ALLOWS_NULL_QUERIES)) {
+    if (mapFeatures.contains(MapFeature.ALLOWS_NULL_VALUE_QUERIES)) {
       valuesCollectionFeatures.add(CollectionFeature.ALLOWS_NULL_QUERIES);
     }
     if (mapFeatures.contains(MapFeature.ALLOWS_NULL_VALUES)) {

@@ -82,15 +82,14 @@ public final class Longs {
    * Compares the two specified {@code long} values. The sign of the value
    * returned is the same as that of {@code ((Long) a).compareTo(b)}.
    *
-   * <p><b>Note:</b> projects using JDK 7 or later should use the equivalent
-   * {@link Long#compare} method instead.
+   * <p><b>Note for Java 7 and later:</b> this method should be treated as
+   * deprecated; use the equivalent {@link Long#compare} method instead.
    *
    * @param a the first {@code long} to compare
    * @param b the second {@code long} to compare
    * @return a negative value if {@code a} is less than {@code b}; a positive
    *     value if {@code a} is greater than {@code b}; or zero if they are equal
    */
-  // TODO(kevinb): if JDK 6 ever becomes a non-concern, remove this
   public static int compare(long a, long b) {
     return (a < b) ? -1 : ((a > b) ? 1 : 0);
   }
@@ -320,6 +319,8 @@ public final class Longs {
    *
    * <p>Unlike {@link Long#parseLong(String)}, this method returns
    * {@code null} instead of throwing an exception if parsing fails.
+   * Additionally, this method only accepts ASCII digits, and returns
+   * {@code null} if non-ASCII digits are present in the string.
    *
    * <p>Note that strings prefixed with ASCII {@code '+'} are rejected, even
    * under JDK 7, despite the change to {@link Long#parseLong(String)} for
@@ -357,7 +358,7 @@ public final class Longs {
       }
       accum -= digit;
     }
-    
+
     if (negative) {
       return accum;
     } else if (accum == Long.MIN_VALUE) {

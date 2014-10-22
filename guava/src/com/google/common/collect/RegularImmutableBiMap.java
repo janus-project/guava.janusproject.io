@@ -17,6 +17,8 @@
 package com.google.common.collect;
 
 import static com.google.common.collect.CollectPreconditions.checkEntryNotNull;
+import static com.google.common.collect.ImmutableMapEntry.createEntryArray;
+import static com.google.common.collect.RegularImmutableMap.checkNoConflictInKeyBucket;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.ImmutableMapEntry.TerminalEntry;
@@ -72,15 +74,9 @@ class RegularImmutableBiMap<K, V> extends ImmutableBiMap<K, V> {
       int valueBucket = Hashing.smear(valueHash) & mask;
       
       ImmutableMapEntry<K, V> nextInKeyBucket = keyTable[keyBucket];
-      for (ImmutableMapEntry<K, V> keyEntry = nextInKeyBucket; keyEntry != null;
-           keyEntry = keyEntry.getNextInKeyBucket()) {
-        checkNoConflict(!key.equals(keyEntry.getKey()), "key", entry, keyEntry);
-      }
+      checkNoConflictInKeyBucket(key, entry, nextInKeyBucket);
       ImmutableMapEntry<K, V> nextInValueBucket = valueTable[valueBucket];
-      for (ImmutableMapEntry<K, V> valueEntry = nextInValueBucket; valueEntry != null;
-           valueEntry = valueEntry.getNextInValueBucket()) {
-        checkNoConflict(!value.equals(valueEntry.getValue()), "value", entry, valueEntry);
-      }
+      checkNoConflictInValueBucket(value, entry, nextInValueBucket);
       ImmutableMapEntry<K, V> newEntry =
           (nextInKeyBucket == null && nextInValueBucket == null)
           ? entry
@@ -121,15 +117,9 @@ class RegularImmutableBiMap<K, V> extends ImmutableBiMap<K, V> {
       int valueBucket = Hashing.smear(valueHash) & mask;
       
       ImmutableMapEntry<K, V> nextInKeyBucket = keyTable[keyBucket];
-      for (ImmutableMapEntry<K, V> keyEntry = nextInKeyBucket; keyEntry != null;
-           keyEntry = keyEntry.getNextInKeyBucket()) {
-        checkNoConflict(!key.equals(keyEntry.getKey()), "key", entry, keyEntry);
-      }
+      checkNoConflictInKeyBucket(key, entry, nextInKeyBucket);
       ImmutableMapEntry<K, V> nextInValueBucket = valueTable[valueBucket];
-      for (ImmutableMapEntry<K, V> valueEntry = nextInValueBucket; valueEntry != null;
-           valueEntry = valueEntry.getNextInValueBucket()) {
-        checkNoConflict(!value.equals(valueEntry.getValue()), "value", entry, valueEntry);
-      }
+      checkNoConflictInValueBucket(value, entry, nextInValueBucket);
       ImmutableMapEntry<K, V> newEntry =
           (nextInKeyBucket == null && nextInValueBucket == null)
           ? new TerminalEntry<K, V>(key, value)
@@ -144,6 +134,15 @@ class RegularImmutableBiMap<K, V> extends ImmutableBiMap<K, V> {
     this.valueTable = valueTable;
     this.entries = entries;
     this.hashCode = hashCode;
+  }
+  
+  // checkNoConflictInKeyBucket is static imported from RegularImmutableMap
+
+  private static void checkNoConflictInValueBucket(Object value, Entry<?, ?> entry,
+      @Nullable ImmutableMapEntry<?, ?> valueBucketHead) {
+    for (; valueBucketHead != null; valueBucketHead = valueBucketHead.getNextInValueBucket()) {
+      checkNoConflict(!value.equals(valueBucketHead.getValue()), "value", entry, valueBucketHead);
+    }
   }
   
   private static final class NonTerminalBiMapEntry<K, V> extends ImmutableMapEntry<K, V> {
@@ -177,56 +176,26 @@ class RegularImmutableBiMap<K, V> extends ImmutableBiMap<K, V> {
       return nextInValueBucket;
     }
   }
-  
-  @SuppressWarnings("unchecked")
-  private static <K, V> ImmutableMapEntry<K, V>[] createEntryArray(int length) {
-    return new ImmutableMapEntry[length];
-  }
 
   @Override
   @Nullable
   public V get(@Nullable Object key) {
-    if (key == null) {
-      return null;
-    }
-    int bucket = Hashing.smear(key.hashCode()) & mask;
-    for (ImmutableMapEntry<K, V> entry = keyTable[bucket]; entry != null;
-         entry = entry.getNextInKeyBucket()) {
-      if (key.equals(entry.getKey())) {
-        return entry.getValue();
-      }
-    }
-    return null;
+    return RegularImmutableMap.get(key, keyTable, mask);
   }
 
   @Override
   ImmutableSet<Entry<K, V>> createEntrySet() {
-    return new ImmutableMapEntrySet<K, V>() {
-      @Override
-      ImmutableMap<K, V> map() {
-        return RegularImmutableBiMap.this;
-      }
+    return new ImmutableMapEntrySet.RegularEntrySet<K, V>(this, entries);
+  }
 
-      @Override
-      public UnmodifiableIterator<Entry<K, V>> iterator() {
-        return asList().iterator();
-      }
+  @Override
+  boolean isHashCodeFast() {
+    return true;
+  }
 
-      @Override
-      ImmutableList<Entry<K, V>> createAsList() {
-        return new RegularImmutableAsList<Entry<K, V>>(this, entries);
-      }
-
-      @Override
-      boolean isHashCodeFast() {
-        return true;
-      }
-
-      @Override
-      public int hashCode() {
-        return hashCode;
-      }
-    };
+  @Override
+  public int hashCode() {
+    return hashCode;
   }
 
   @Override

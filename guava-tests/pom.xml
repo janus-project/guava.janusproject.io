@@ -2,18 +2,21 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
+
 	<parent>
 		<groupId>io.janusproject.guava</groupId>
 		<artifactId>guava-parent</artifactId>
-		<version>17.0</version>
+		<version>19.0.0</version>
 	</parent>
+
 	<artifactId>guava-tests</artifactId>
 	<name>Guava Unit Tests</name>
 	<description>
     The unit tests for the Guava libraries - separated into a
     separate artifact to allow for the testlibs to depend on guava
     itself.
-  </description>
+	</description>
+	
 	<dependencies>
 		<!-- BEGIN Additions by ngaud -->
 		<dependency>
@@ -26,7 +29,6 @@
 			<artifactId>guice-assistedinject</artifactId>
 		</dependency>
 		<!-- END Additions by ngaud -->
-
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>guava-testlib</artifactId>
@@ -50,7 +52,7 @@
 			<artifactId>mockito-core</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.truth0</groupId>
+			<groupId>com.google.truth</groupId>
 			<artifactId>truth</artifactId>
 		</dependency>
 		<dependency>
@@ -89,6 +91,10 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>animal-sniffer-maven-plugin</artifactId>
+			</plugin>
 			<!-- TODO(cpovirk): reenable after a matching Caliper snapshot is pushed 
 				to Maven Central <plugin> <groupId>org.codehaus.mojo</groupId> <artifactId>build-helper-maven-plugin</artifactId> 
 				<version>1.7</version> <executions> <execution> <id>add-benchmark-sources</id> 
@@ -98,3 +104,4 @@
 		</plugins>
 	</build>
 </project>
+

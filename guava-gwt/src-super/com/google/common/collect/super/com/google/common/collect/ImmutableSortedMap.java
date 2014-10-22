@@ -19,9 +19,8 @@ package com.google.common.collect;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Maps.newTreeMap;
+import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableSortedMap;
-
-import com.google.common.collect.ImmutableSortedSet;
 
 import java.util.Comparator;
 import java.util.Iterator;
@@ -62,17 +61,6 @@ public abstract class ImmutableSortedMap<K, V>
     this.sortedDelegate = delegate;
   }
 
-  private static <K, V> ImmutableSortedMap<K, V> create(
-      Comparator<? super K> comparator,
-      Entry<? extends K, ? extends V>... entries) {
-    checkNotNull(comparator);
-    SortedMap<K, V> delegate = newModifiableDelegate(comparator);
-    for (Entry<? extends K, ? extends V> entry : entries) {
-      delegate.put(entry.getKey(), entry.getValue());
-    }
-    return newView(unmodifiableSortedMap(delegate), comparator);
-  }
-
   // Casting to any type is safe because the set will never hold any elements.
   @SuppressWarnings("unchecked")
   public static <K, V> ImmutableSortedMap<K, V> of() {
@@ -81,7 +69,7 @@ public abstract class ImmutableSortedMap<K, V>
 
   public static <K extends Comparable<? super K>, V> ImmutableSortedMap<K, V>
       of(K k1, V v1) {
-    return create(Ordering.natural(), entryOf(k1, v1));
+    return copyOf(singletonMap(k1, v1));
   }
 
   public static <K extends Comparable<? super K>, V> ImmutableSortedMap<K, V>
@@ -116,6 +104,17 @@ public abstract class ImmutableSortedMap<K, V>
   public static <K, V> ImmutableSortedMap<K, V> copyOf(
       Map<? extends K, ? extends V> map, Comparator<? super K> comparator) {
     return copyOfInternal(map, checkNotNull(comparator));
+  }
+
+  public static <K, V> ImmutableSortedMap<K, V> copyOf(
+      Iterable<? extends Entry<? extends K, ? extends V>> entries) {
+    return new Builder<K, V>(NATURAL_ORDER).putAll(entries).build();
+  }
+
+  public static <K, V> ImmutableSortedMap<K, V> copyOf(
+      Iterable<? extends Entry<? extends K, ? extends V>> entries, 
+          Comparator<? super K> comparator) {
+    return new Builder<K, V>(comparator).putAll(entries).build();
   }
 
   public static <K, V> ImmutableSortedMap<K, V> copyOfSorted(
@@ -162,9 +161,9 @@ public abstract class ImmutableSortedMap<K, V>
       Entry<K, V> previousEntry
           = map.tailMap(key).entrySet().iterator().next();
       throw new IllegalArgumentException(
-          "Duplicate keys in mappings " + previousEntry.getKey() +
-          "=" + previousEntry.getValue() + " and " + key +
-          "=" + value);
+          "Duplicate keys in mappings " + previousEntry.getKey()
+          + "=" + previousEntry.getValue() + " and " + key
+          + "=" + value);
     }
     map.put(key, value);
   }
@@ -199,8 +198,13 @@ public abstract class ImmutableSortedMap<K, V>
     }
 
     @Override public Builder<K, V> putAll(Map<? extends K, ? extends V> map) {
-      for (Entry<? extends K, ? extends V> entry : map.entrySet()) {
-        put(entry.getKey(), entry.getValue());
+      return putAll(map.entrySet());
+    }
+    
+    @Override public Builder<K, V> putAll(
+        Iterable<? extends Entry<? extends K, ? extends V>> entries) {
+      for (Entry<? extends K, ? extends V> entry : entries) {
+        put(entry);
       }
       return this;
     }

@@ -9,13 +9,11 @@
   <inherits name="com.google.common.collect.testing.google.Google"/>
   <inherits name="com.google.common.io.Io"/>
   <inherits name="com.google.common.testing.Testing"/>
-  <inherits name="org.truth0.Truth"/>
+  <inherits name="com.google.common.truth.Truth"/>
   <entry-point class="com.google.common.collect.TestModuleEntryPoint"/>
    
   <source path=""/>
     
-  <add-linker name="std"/>
-   
   <super-source path="super"/>
    
 </module>

@@ -11,11 +11,14 @@
   <inherits name="com.google.common.primitives.Primitives" />
   <inherits name="com.google.common.util.concurrent.Concurrent" />
   <inherits name="com.google.common.xml.Xml" />
-  <inherits name="com.google.gwt.user.User" />
+  <inherits name="com.google.thirdparty.publicsuffix.PublicSuffixPatterns" />
+  <inherits name="com.google.thirdparty.publicsuffix.PublicSuffixType" />
 
   <!-- com.google.common.testing.Testing is located in
        GuavaTests under guava-gwt/test -->
 
-  <source path="" />
+  <source path="">
+    <include name="ForceGuavaCompilationEntryPoint.java" />
+  </source>
   <entry-point class="com.google.common.ForceGuavaCompilationEntryPoint" />
 </module>

@@ -16,6 +16,7 @@
 
 package com.google.common.util.concurrent;
 
+import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -43,6 +44,7 @@ import javax.annotation.concurrent.GuardedBy;
  */
 public class AbstractServiceTest extends TestCase {
 
+  private static final long LONG_TIMEOUT_MILLIS = 2500;
   private Thread executionThread;
   private Throwable thrownByExecutionThread;
 
@@ -257,7 +259,7 @@ public class AbstractServiceTest extends TestCase {
       @Override public void stopping(State from) {
         stopppingCount.incrementAndGet();
       }
-    }, MoreExecutors.sameThreadExecutor());
+    }, directExecutor());
 
     service.startAsync();
     service.stopAsync();
@@ -353,7 +355,7 @@ public class AbstractServiceTest extends TestCase {
     service.startAsync().awaitRunning();
     assertEquals(State.RUNNING, service.state());
     service.stopAsync();
-    waiter.join(100);  // ensure that the await in the other thread is triggered
+    waiter.join(LONG_TIMEOUT_MILLIS);  // ensure that the await in the other thread is triggered
     assertFalse(waiter.isAlive());
   }
 
@@ -376,7 +378,7 @@ public class AbstractServiceTest extends TestCase {
     assertEquals(State.RUNNING, service.state());
     service.notifyFailed(EXCEPTION);
     assertEquals(State.FAILED, service.state());
-    waiter.join(100);
+    waiter.join(LONG_TIMEOUT_MILLIS);
     assertFalse(waiter.isAlive());
     assertTrue(exception.get() instanceof IllegalStateException);
     assertEquals(EXCEPTION, exception.get().getCause());
@@ -685,7 +687,7 @@ public class AbstractServiceTest extends TestCase {
     final StartFailingService service = new StartFailingService();
     service.startAsync();
     assertEquals(State.FAILED, service.state());
-    service.addListener(new RecordingListener(service), MoreExecutors.sameThreadExecutor());
+    service.addListener(new RecordingListener(service), directExecutor());
     Thread thread = new Thread() {
       @Override public void run() {
         // Internally stopAsync() grabs a lock, this could be any such method on AbstractService.
@@ -693,7 +695,7 @@ public class AbstractServiceTest extends TestCase {
       }
     };
     thread.start();
-    thread.join(100);
+    thread.join(LONG_TIMEOUT_MILLIS);
     assertFalse(thread + " is deadlocked", thread.isAlive());
   }
 
@@ -703,8 +705,8 @@ public class AbstractServiceTest extends TestCase {
       @Override public void running() {
         service.awaitRunning();
       }
-    }, MoreExecutors.sameThreadExecutor());
-    service.startAsync().awaitRunning(10, TimeUnit.MILLISECONDS);
+    }, directExecutor());
+    service.startAsync().awaitRunning(LONG_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
     service.stopAsync();
   }
 
@@ -714,7 +716,7 @@ public class AbstractServiceTest extends TestCase {
       @Override public void terminated(State from) {
         service.stopAsync().awaitTerminated();
       }
-    }, MoreExecutors.sameThreadExecutor());
+    }, directExecutor());
     service.startAsync().awaitRunning();
 
     Thread thread = new Thread() {
@@ -723,7 +725,7 @@ public class AbstractServiceTest extends TestCase {
       }
     };
     thread.start();
-    thread.join(100);
+    thread.join(LONG_TIMEOUT_MILLIS);
     assertFalse(thread + " is deadlocked", thread.isAlive());
   }
 
@@ -811,7 +813,7 @@ public class AbstractServiceTest extends TestCase {
   private static class RecordingListener extends Listener {
     static RecordingListener record(Service service) {
       RecordingListener listener = new RecordingListener(service);
-      service.addListener(listener, MoreExecutors.sameThreadExecutor());
+      service.addListener(listener, directExecutor());
       return listener;
     }
 

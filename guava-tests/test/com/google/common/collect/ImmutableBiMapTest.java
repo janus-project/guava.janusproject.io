@@ -16,7 +16,7 @@
 
 package com.google.common.collect;
 
-import static org.truth0.Truth.ASSERT;
+import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
@@ -26,6 +26,7 @@ import com.google.common.collect.testing.MapInterfaceTest;
 import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.features.MapFeature;
+import com.google.common.collect.testing.google.BiMapGenerators.ImmutableBiMapCopyOfEntriesGenerator;
 import com.google.common.collect.testing.google.BiMapGenerators.ImmutableBiMapCopyOfGenerator;
 import com.google.common.collect.testing.google.BiMapGenerators.ImmutableBiMapGenerator;
 import com.google.common.collect.testing.google.BiMapInverseTester;
@@ -67,15 +68,24 @@ public class ImmutableBiMapTest extends TestCase {
             CollectionFeature.SERIALIZABLE,
             CollectionFeature.KNOWN_ORDER,
             MapFeature.REJECTS_DUPLICATES_AT_CREATION,
-            MapFeature.ALLOWS_NULL_QUERIES)
+            MapFeature.ALLOWS_ANY_NULL_QUERIES)
         .suppressing(BiMapInverseTester.getInverseSameAfterSerializingMethods())
         .createTestSuite());
     suite.addTest(BiMapTestSuiteBuilder.using(new ImmutableBiMapCopyOfGenerator())
-        .named("ImmutableBiMap.copyOf")
+        .named("ImmutableBiMap.copyOf[Map]")
         .withFeatures(CollectionSize.ANY,
             CollectionFeature.SERIALIZABLE,
             CollectionFeature.KNOWN_ORDER,
-            MapFeature.ALLOWS_NULL_QUERIES)
+            MapFeature.ALLOWS_ANY_NULL_QUERIES)
+        .suppressing(BiMapInverseTester.getInverseSameAfterSerializingMethods())
+        .createTestSuite());
+    suite.addTest(BiMapTestSuiteBuilder.using(new ImmutableBiMapCopyOfEntriesGenerator())
+        .named("ImmutableBiMap.copyOf[Iterable<Entry>]")
+        .withFeatures(CollectionSize.ANY,
+            CollectionFeature.SERIALIZABLE,
+            CollectionFeature.KNOWN_ORDER,
+            MapFeature.REJECTS_DUPLICATES_AT_CREATION,
+            MapFeature.ALLOWS_ANY_NULL_QUERIES)
         .suppressing(BiMapInverseTester.getInverseSameAfterSerializingMethods())
         .createTestSuite());
 
@@ -170,6 +180,13 @@ public class ImmutableBiMapTest extends TestCase {
           .build();
       assertMapEquals(map, "one", 1);
       assertMapEquals(map.inverse(), 1, "one");
+    }
+
+    public void testBuilder_withImmutableEntry() {
+      ImmutableBiMap<String, Integer> map = new Builder<String, Integer>()
+          .put(Maps.immutableEntry("one", 1))
+          .build();
+      assertMapEquals(map, "one", 1);
     }
 
     public void testBuilder() {
@@ -445,7 +462,7 @@ public class ImmutableBiMapTest extends TestCase {
           ImmutableMap.of("one", 1, "two", 2, "three", 3, "four", 4));
       Set<String> keys = bimap.keySet();
       assertEquals(Sets.newHashSet("one", "two", "three", "four"), keys);
-      ASSERT.that(keys).has().exactly("one", "two", "three", "four").inOrder();
+      assertThat(keys).has().exactly("one", "two", "three", "four").inOrder();
     }
 
     public void testValues() {
@@ -453,7 +470,7 @@ public class ImmutableBiMapTest extends TestCase {
           ImmutableMap.of("one", 1, "two", 2, "three", 3, "four", 4));
       Set<Integer> values = bimap.values();
       assertEquals(Sets.newHashSet(1, 2, 3, 4), values);
-      ASSERT.that(values).has().exactly(1, 2, 3, 4).inOrder();
+      assertThat(values).has().exactly(1, 2, 3, 4).inOrder();
     }
 
     public void testDoubleInverse() {

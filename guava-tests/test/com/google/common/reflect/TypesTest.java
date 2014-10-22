@@ -16,9 +16,10 @@
 
 package com.google.common.reflect;
 
+import static com.google.common.truth.Truth.assertThat;
 import static java.util.Arrays.asList;
-import static org.truth0.Truth.ASSERT;
 
+import com.google.common.collect.Lists;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.NullPointerTester;
 import com.google.common.testing.NullPointerTester.Visibility;
@@ -65,8 +66,8 @@ public class TypesTest extends TestCase {
     assertEquals(jvmType.toString(), ourType.toString());
     assertEquals(jvmType.hashCode(), ourType.hashCode());
     assertEquals(HashMap.class, ourType.getRawType());
-    ASSERT.that(ourType.getActualTypeArguments())
-        .iteratesOverSequence(jvmType.getActualTypeArguments());
+    assertThat(ourType.getActualTypeArguments()).asList()
+        .has().exactlyAs(asList(jvmType.getActualTypeArguments())).inOrder();
     assertEquals(Arrays.asList(
             String.class,
             Types.newArrayType(Types.newArrayType(int.class))),
@@ -106,8 +107,8 @@ public class TypesTest extends TestCase {
     assertEquals(jvmType.toString(), ourType.toString());
     assertEquals(Map.class, ourType.getOwnerType());
     assertEquals(Map.Entry.class, ourType.getRawType());
-    ASSERT.that(ourType.getActualTypeArguments())
-        .iteratesOverSequence(jvmType.getActualTypeArguments());
+    assertThat(ourType.getActualTypeArguments()).asList()
+        .has().exactlyAs(asList(jvmType.getActualTypeArguments())).inOrder();
   }
 
   public void testNewParameterizedType_serializable() {
@@ -267,9 +268,9 @@ public class TypesTest extends TestCase {
       WildcardType expected, WildcardType actual) {
     assertEquals(expected.toString(), actual.toString());
     assertEquals(actual.toString(), expected.hashCode(), actual.hashCode());
-    ASSERT.that(actual.getLowerBounds())
+    assertThat(actual.getLowerBounds()).asList()
         .has().exactlyAs(asList(expected.getLowerBounds())).inOrder();
-    ASSERT.that(actual.getUpperBounds())
+    assertThat(actual.getUpperBounds()).asList()
         .has().exactlyAs(asList(expected.getUpperBounds())).inOrder();
   }
 
@@ -311,33 +312,49 @@ public class TypesTest extends TestCase {
     assertEqualTypeVariable(objectBoundJvmType, objectBound);
     assertEqualTypeVariable(upperBoundJvmType, upperBound);
 
-    new EqualsTester()
+    new TypeVariableEqualsTester()
         .addEqualityGroup(noBoundJvmType, noBound)
         .addEqualityGroup(objectBoundJvmType, objectBound)
-        .addEqualityGroup(
-            upperBoundJvmType, upperBound,
-            withBounds(upperBoundJvmType, CharSequence.class)) // bounds ignored
+        .addEqualityGroup(upperBoundJvmType, upperBound)
         .testEquals();
   }
 
   public void testNewTypeVariable_primitiveTypeBound() {
     try {
-      Types.newTypeVariable(List.class, "E", int.class);
+      Types.newArtificialTypeVariable(List.class, "E", int.class);
       fail();
     } catch (IllegalArgumentException expected) {}
   }
 
   public void testNewTypeVariable_serializable() throws Exception {
     try {
-      SerializableTester.reserialize(Types.newTypeVariable(List.class, "E"));
+      SerializableTester.reserialize(Types.newArtificialTypeVariable(List.class, "E"));
       fail();
     } catch (RuntimeException expected) {}
   }
 
   private static <D extends GenericDeclaration> TypeVariable<D> withBounds(
       TypeVariable<D> typeVariable, Type... bounds) {
-    return Types.newTypeVariable(
+    return Types.newArtificialTypeVariable(
         typeVariable.getGenericDeclaration(), typeVariable.getName(), bounds);
+  }
+
+  private static class TypeVariableEqualsTester {
+    private final EqualsTester tester = new EqualsTester();
+
+    TypeVariableEqualsTester addEqualityGroup(Type jvmType, Type... types) {
+      if (Types.NativeTypeVariableEquals.NATIVE_TYPE_VARIABLE_ONLY) {
+        tester.addEqualityGroup(jvmType);
+        tester.addEqualityGroup((Object[]) types);
+      } else {
+        tester.addEqualityGroup(Lists.asList(jvmType, types).toArray());
+      }
+      return this;
+    }
+
+    void testEquals() {
+      tester.testEquals();
+    }
   }
 
   private static void assertEqualTypeVariable(
@@ -346,8 +363,11 @@ public class TypesTest extends TestCase {
     assertEquals(expected.getName(), actual.getName());
     assertEquals(
         expected.getGenericDeclaration(), actual.getGenericDeclaration());
-    assertEquals(actual.toString(), expected.hashCode(), actual.hashCode());
-    ASSERT.that(actual.getBounds()).has().exactlyAs(asList(expected.getBounds())).inOrder();
+    if (!Types.NativeTypeVariableEquals.NATIVE_TYPE_VARIABLE_ONLY) {
+      assertEquals(actual.toString(), expected.hashCode(), actual.hashCode());
+    }
+    assertThat(actual.getBounds()).asList()
+        .has().exactlyAs(asList(expected.getBounds())).inOrder();
   }
 
   /**

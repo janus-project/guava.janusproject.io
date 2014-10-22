@@ -17,8 +17,10 @@ package com.google.common.collect;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.annotations.GwtCompatible;
+import com.google.common.collect.ImmutableMap.IteratorBasedImmutableMap;
 
 import java.util.Map;
+import java.util.Map.Entry;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
@@ -40,23 +42,13 @@ final class DenseImmutableTable<R, C, V>
   private final int[] iterationOrderRow;
   private final int[] iterationOrderColumn;
 
-  private static <E> ImmutableMap<E, Integer> makeIndex(ImmutableSet<E> set) {
-    ImmutableMap.Builder<E, Integer> indexBuilder = ImmutableMap.builder();
-    int i = 0;
-    for (E key : set) {
-      indexBuilder.put(key, i);
-      i++;
-    }
-    return indexBuilder.build();
-  }
-
   DenseImmutableTable(ImmutableList<Cell<R, C, V>> cellList,
       ImmutableSet<R> rowSpace, ImmutableSet<C> columnSpace) {
     @SuppressWarnings("unchecked")
     V[][] array = (V[][]) new Object[rowSpace.size()][columnSpace.size()];
     this.values = array;
-    this.rowKeyToIndex = makeIndex(rowSpace);
-    this.columnKeyToIndex = makeIndex(columnSpace);
+    this.rowKeyToIndex = Maps.indexMap(rowSpace);
+    this.columnKeyToIndex = Maps.indexMap(columnSpace);
     rowCounts = new int[rowKeyToIndex.size()];
     columnCounts = new int[columnKeyToIndex.size()];
     int[] iterationOrderRow = new int[cellList.size()];
@@ -84,7 +76,7 @@ final class DenseImmutableTable<R, C, V>
   /**
    * An immutable map implementation backed by an indexed nullable array.
    */
-  private abstract static class ImmutableArrayMap<K, V> extends ImmutableMap<K, V> {
+  private abstract static class ImmutableArrayMap<K, V> extends IteratorBasedImmutableMap<K, V> {
     private final int size;
   
     ImmutableArrayMap(int size) {
@@ -119,34 +111,25 @@ final class DenseImmutableTable<R, C, V>
       Integer keyIndex = keyToIndex().get(key);
       return (keyIndex == null) ? null : getValue(keyIndex);
     }
-  
+
     @Override
-    ImmutableSet<Entry<K, V>> createEntrySet() {
-      return new ImmutableMapEntrySet<K, V>() {
-        @Override ImmutableMap<K, V> map() {
-          return ImmutableArrayMap.this;
-        }
+    UnmodifiableIterator<Entry<K, V>> entryIterator() {
+      return new AbstractIterator<Entry<K, V>>() {
+        private int index = -1;
+        private final int maxIndex = keyToIndex().size();
 
         @Override
-        public UnmodifiableIterator<Entry<K, V>> iterator() {
-          return new AbstractIterator<Entry<K, V>>() {
-            private int index = -1;
-            private final int maxIndex = keyToIndex().size();
-
-            @Override
-            protected Entry<K, V> computeNext() {
-              for (index++; index < maxIndex; index++) {
-                V value = getValue(index);
-                if (value != null) {
-                  return Maps.immutableEntry(getKey(index), value);
-                }
-              }
-              return endOfData();
+        protected Entry<K, V> computeNext() {
+          for (index++; index < maxIndex; index++) {
+            V value = getValue(index);
+            if (value != null) {
+              return Maps.immutableEntry(getKey(index), value);
             }
-          };
+          }
+          return endOfData();
         }
       };
-    }
+        }
   }
 
   private final class Row extends ImmutableArrayMap<C, V> {

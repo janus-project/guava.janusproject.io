@@ -16,7 +16,7 @@
 
 package com.google.common.reflect;
 
-import static org.truth0.Truth.ASSERT;
+import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Supplier;
@@ -124,7 +124,7 @@ public class TypeTokenResolutionTest extends TestCase {
         parameterized.parameterizedType());
     assertEquals(TypeTokenResolutionTest.class, resolved.getOwnerType());
     assertEquals(Bar.class, resolved.getRawType());
-    ASSERT.that(resolved.getActualTypeArguments()).has().item(String.class);
+    assertThat(resolved.getActualTypeArguments()).asList().has().item(String.class);
   }
   
   private interface StringListPredicate extends Predicate<List<String>> {}
@@ -543,5 +543,21 @@ public class TypeTokenResolutionTest extends TestCase {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  public void testTwoStageResolution() {
+    class ForTwoStageResolution<A extends Number> {
+      <B extends A> void verifyTwoStageResolution() {
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Type type = new TypeToken<B>(getClass()) {}
+            // B's bound may have already resolved to something.
+            // Make sure it can still further resolve when given a context.
+            .where(new TypeParameter<B>() {}, (Class) Integer.class)
+            .getType();
+        assertEquals(Integer.class, type);
+      }
+    }
+    new ForTwoStageResolution<Integer>().verifyTwoStageResolution();
+    new ForTwoStageResolution<Integer>() {}.verifyTwoStageResolution();
   }
 }
